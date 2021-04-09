@@ -1,20 +1,21 @@
 body{$
-  font-family: "DejaVuSansMono NF", Helvetica, monospace;
-  color: #005f87;
-  background: #000000;
-  /* linear-gradient( */
-  /* rgba(68, 68, 68, 1), */
-  /* rgba(0, 0, 0, 1) */
-  /* ); */
   text-align: left;
-  padding: 20px;
+  padding: 2%;
   border-style: solid;
+  position: relative;
+  left: 8%;
+  right: 100%;
+  white-space: -moz-pre-wrap !important;
+  /* color: #005f87; */
+  /* background: #000000; */
+  font-family: "DejaVuSansMono NF", Helvetica, monospace;
+  overflow-wrap: break-word;
 }
 
 .sidenav {
   color: #00afd7;
   height: 100%;
-  width: 160px;
+  width: 8%;
   position: fixed;
   z-index: 1;
   top: 0;
@@ -22,4 +23,5 @@ body{$
   background-color: #111;
   overflow-x: hidden;
   padding-top: 20px;
+  text-align: center;
 }

@@ -1,0 +1,28 @@
+{
+  "name": "web",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/terminaldweller/web.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/terminaldweller/web/issues"
+  },
+  "homepage": "https://github.com/terminaldweller/web#readme",
+  "dependencies": {
+    "ejs": "^3.1.6",
+    "jsdom": "^16.2.2",
+    "katex": "^0.11.1",
+    "markdown-it": "^11.0.0",
+    "markdown-it-highlightjs": "^3.4.0",
+    "markdown-it-multimd-table": "^4.0.2",
+    "markdown-it-texmath": "^0.7.0"
+  }
+}

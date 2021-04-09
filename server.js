@@ -4,19 +4,22 @@
 const express = require("express");
 const path = require("path");
 const fs = require("fs");
-const mitTexMath = require("markdown-it-texmath");
-const mitMulMd = require("markdown-it-multimd-table");
 const mit = require("markdown-it")({ html: true })
   .enable(["table"])
   .disable(["strikethrough"])
-  .use(mitTexMath, {
+  .use(require("markdown-it-texmath"), {
     engine: require("katex"),
     delimiters: "gitlab",
     katexOptions: { macros: { "\\RR": "\\mathbb{R}" } },
   })
-  .use(mitMulMd);
-const app = express();
+  .use(require("markdown-it-multimd-table"))
+  .use(require("markdown-it-highlightjs"), {
+    inline: true,
+    auto: true,
+    code: true,
+  });
 
+const app = express();
 app.use(express.static("./"));
 app.use(express.static(path.join(__dirname, "css")));
 app.set("views", "./views");
@@ -33,6 +36,7 @@ app.get("/", (req, res) => {
         mds: ["c struct to lua table", "lazy makefiles", "telegram lua"],
       },
     });
+    console.log(mit.render(chunk));
   });
 });
 
