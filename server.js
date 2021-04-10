@@ -20,23 +20,25 @@ const mit = require("markdown-it")({ html: true })
   });
 
 const app = express();
-app.use(express.static("./"));
+app.use(express.static(__dirname));
 app.use(express.static(path.join(__dirname, "css")));
-app.set("views", "./views");
+app.set("views", path.join(__dirname, "views"));
 app.set("view engine", "ejs");
 app.engine("ejs", require("ejs").__express);
 
 app.get("/", (req, res) => {
-  let readStream = fs.createReadStream("./mds/cstruct2luatable.md", "utf-8");
+  let readStream = fs.createReadStream(
+    path.join(__dirname, "mds/cstruct2luatable.md"),
+    "utf-8"
+  );
   // FIXME-this is gonna be so wrong when the md is bigger than one chunk
   readStream.on("data", (chunk) => {
     res.render("index", {
       data: {
         blogHttp: mit.render(chunk),
-        mds: ["c struct to lua table", "lazy makefiles", "telegram lua"],
+        mds: fs.readdirSync(path.join(__dirname, "mds"), "utf-8"),
       },
     });
-    console.log(mit.render(chunk));
   });
 });
 

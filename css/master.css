@@ -1,27 +1,30 @@
+@import "parasiso-dark.css";
+
 body{$
   text-align: left;
   padding: 2%;
   border-style: solid;
   position: relative;
-  left: 8%;
-  right: 100%;
+  /* left: 0; */
+  /* right: 50%; */
   white-space: -moz-pre-wrap !important;
-  /* color: #005f87; */
-  /* background: #000000; */
+  color: #005f87;
+  background: #000000;
   font-family: "DejaVuSansMono NF", Helvetica, monospace;
   overflow-wrap: break-word;
 }
 
 .sidenav {
-  color: #00afd7;
+  color: #005f87;
   height: 100%;
-  width: 8%;
+  width: 10%;
+  border-style: solid;
   position: fixed;
-  z-index: 1;
+  z-index: 0;
   top: 0;
-  left: 0;
-  background-color: #111;
+  right: 0;
+  background-color: #000000;
   overflow-x: hidden;
-  padding-top: 20px;
+  padding-top: 1%;
   text-align: center;
 }
