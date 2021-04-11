@@ -32,6 +32,7 @@ app.get("/$", (req, res) => {
   );
   readStream.on("data", (chunk) => {
     res.render("index", {
+      cache: true,
       data: {
         blogHttp: mit.render(chunk),
         mds: fs.readdirSync(path.join(__dirname, "mds"), "utf-8"),
@@ -51,6 +52,7 @@ app.get("/mds/:mdname$", (req, res) => {
     );
     readStream.on("data", (chunk) => {
       res.render("index", {
+        cache: true,
         data: {
           blogHttp: mit.render(chunk),
           mds: fs.readdirSync(path.join(__dirname, "mds"), "utf-8"),
