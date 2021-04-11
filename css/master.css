@@ -1,30 +1,42 @@
-@import "parasiso-dark.css";
+@import "devibeans.css";
 
-body{$
+body {
+  color: #005f87;
+  background: #000000;
+  font-family: "DejaVuSansMono NF", Helvetica, monospace;
+}
+
+.article{$
   text-align: left;
   padding: 2%;
   border-style: solid;
   position: relative;
-  /* left: 0; */
-  /* right: 50%; */
   white-space: -moz-pre-wrap !important;
   color: #005f87;
   background: #000000;
   font-family: "DejaVuSansMono NF", Helvetica, monospace;
   overflow-wrap: break-word;
+  float: left;
+  width: 78%;
 }
 
 .sidenav {
+  padding: 2%;
   color: #005f87;
   height: 100%;
-  width: 10%;
   border-style: solid;
-  position: fixed;
-  z-index: 0;
+  position: relative;
+  /* z-index: 0; */
   top: 0;
   right: 0;
   background-color: #000000;
   overflow-x: hidden;
-  padding-top: 1%;
-  text-align: center;
+  text-align: left;
+  float: right;
+  width: 13%;
+}
+
+a {
+  color: #005f87;
+  text-decoration: none;
 }

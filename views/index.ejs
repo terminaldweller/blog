@@ -4,16 +4,19 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width">
     <title>Blog</title>
-    <link rel="stylesheet" href="/css/master.css" type="text/css" media="screen" title="no title" charset="utf-8">
+    <link rel="stylesheet" href="/master.css" type="text/css" media="screen" title="no title" charset="utf-8">
   </head>
   <body>
     <script>0</script>
     <div class="sidenav">
       <% data.mds.forEach(function(md) { %>
-        <h2><%= md %></h2>
-        <a href="#" target="_blank"><%= md %></a>
+        <ul>
+          <li><a href=<%= "/mds/"+md %> target="_self" rel="noreferrer noopener" type="text/html"><%= md %></a></li>
+        </ul>
       <% }) %>
     </div>
+    <div class="article">
     <%- data.blogHttp %>
+    </div>
   </body>
 </html>

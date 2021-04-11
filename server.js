@@ -20,18 +20,16 @@ const mit = require("markdown-it")({ html: true })
   });
 
 const app = express();
-app.use(express.static(__dirname));
 app.use(express.static(path.join(__dirname, "css")));
 app.set("views", path.join(__dirname, "views"));
 app.set("view engine", "ejs");
 app.engine("ejs", require("ejs").__express);
 
-app.get("/", (req, res) => {
+app.get("/$", (req, res) => {
   let readStream = fs.createReadStream(
-    path.join(__dirname, "mds/cstruct2luatable.md"),
+    path.join(__dirname, "mds", "cstruct2luatable.md"),
     "utf-8"
   );
-  // FIXME-this is gonna be so wrong when the md is bigger than one chunk
   readStream.on("data", (chunk) => {
     res.render("index", {
       data: {
@@ -42,4 +40,26 @@ app.get("/", (req, res) => {
   });
 });
 
-app.listen(3000);
+app.get("/mds/:mdname$", (req, res) => {
+  if (req.params["mdname"] == "") {
+    res.write("nothing requested!");
+  }
+  try {
+    let readStream = fs.createReadStream(
+      path.join(__dirname, req.path),
+      "utf-8"
+    );
+    readStream.on("data", (chunk) => {
+      res.render("index", {
+        data: {
+          blogHttp: mit.render(chunk),
+          mds: fs.readdirSync(path.join(__dirname, "mds"), "utf-8"),
+        },
+      });
+    });
+  } catch (err) {
+    console.log(err);
+  }
+});
+
+app.listen(9000);
