@@ -2,6 +2,7 @@
 "use strict";
 
 const express = require("express");
+const sitemap = require("express-sitemap-xml");
 const path = require("path");
 const fs = require("fs");
 const mit = require("markdown-it")({ html: true })
@@ -37,6 +38,7 @@ function renderAndSend(req, res) {
       path.join(__dirname, viewPath),
       "utf-8"
     );
+    //FIXME-this can obviously fail
     readStream.on("data", (chunk) => {
       res.render("index", {
         cache: true,
@@ -51,6 +53,21 @@ function renderAndSend(req, res) {
   }
 }
 
+app.get("/health", (req, res) => {
+  res.type("application/json");
+  let response = { isOK: "True", error: "" };
+  res.send(response);
+});
+
+app.get("/robots.txt", (req, res) => {
+  res.type("text/plain");
+  let robots_txt = "Sitemap: http://blog.terminaldweller.com\n";
+  robots_txt += "User-agent: *\n";
+  robots_txt += "Disallow: \n";
+  robots_txt += "Crawl-Delay: 20";
+  res.send(robots_txt);
+});
+
 app.get("/$", (req, res) => {
   renderAndSend(req, res);
 });
@@ -60,6 +77,20 @@ app.get("/mds/:mdname$", (req, res) => {
     res.write("nothing requested!");
   }
   renderAndSend(req, res);
+});
+
+async function enumerateDir() {
+  return await fs.readdirSync(path.join(__dirname, "mds"));
+}
+
+app.use(sitemap(enumerateDir, "http://blog.terminaldweller.com"));
+
+app.use((req, res) => {
+  return res.status(404).send({ message: "Path" + req.url + "not found!" });
+});
+
+app.use((err, req, res) => {
+  return res.status(500).send({ error: err });
 });
 
 app.listen(9000);
