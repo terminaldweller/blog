@@ -27,5 +27,8 @@
     "markdown-it-highlightjs": "^3.4.0",
     "markdown-it-multimd-table": "^4.0.2",
     "markdown-it-texmath": "^0.7.0"
+  },
+  "devDependencies": {
+    "eslint": "^7.32.0"
   }
 }
