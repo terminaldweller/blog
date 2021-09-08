@@ -19,6 +19,7 @@ const mit = require("markdown-it")({ html: true })
     auto: true,
     code: true,
   });
+const https = require("https");
 
 const app = express();
 app.use(express.static(path.join(__dirname, "css")));
@@ -93,4 +94,9 @@ app.use((err, req, res) => {
   return res.status(500).send({ error: err });
 });
 
-app.listen(9000);
+https.createServer({
+  key: fs.readFileSync('/certs/server.key'),
+  cert: fs.readFileSync("/certs/server.cert")
+},app).listen(9000);
+
+// app.listen(9000);
