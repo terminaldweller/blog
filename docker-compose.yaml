@@ -1,0 +1,15 @@
+version: "3.7"
+services:
+  web:
+    image: web
+    build:
+      context: ./
+    networks:
+      - webnet
+    restart: unless-stopped
+    ports:
+      - "9000:9000"
+    cap_drop:
+      - ALL
+networks:
+  webnet:
