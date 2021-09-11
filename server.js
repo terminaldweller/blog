@@ -19,7 +19,7 @@ const mit = require("markdown-it")({ html: true })
     auto: true,
     code: true,
   });
-const https = require("https");
+const spdy = require("spdy");
 
 const app = express();
 app.use(express.static(path.join(__dirname, "css")));
@@ -94,9 +94,12 @@ app.use((err, req, res) => {
   return res.status(500).send({ error: err });
 });
 
-https.createServer({
-  key: fs.readFileSync("/certs/privkey1.pem","utf-8"),
-  cert: fs.readFileSync("/certs/fullchain1.pem","utf-8")
-},app).listen(9000);
-
-// app.listen(9000);
+spdy
+  .createServer(
+    {
+      key: fs.readFileSync("/certs/privkey1.pem", "utf-8"),
+      cert: fs.readFileSync("/certs/fullchain1.pem", "utf-8"),
+    },
+    app
+  )
+  .listen(9000);
