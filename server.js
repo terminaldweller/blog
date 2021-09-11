@@ -95,8 +95,8 @@ app.use((err, req, res) => {
 });
 
 https.createServer({
-  key: fs.readFileSync('/certs/server.key'),
-  cert: fs.readFileSync("/certs/server.cert")
+  key: fs.readFileSync("/certs/privkey1.pem","utf-8"),
+  cert: fs.readFileSync("/certs/fullchain1.pem","utf-8")
 },app).listen(9000);
 
 // app.listen(9000);
