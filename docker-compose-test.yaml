@@ -6,15 +6,12 @@ services:
       context: ./
     networks:
       - webnet
-    restart: unless-stopped
     ports:
       - "19009:9000"
-    volumes:
-      - /etc/letsencrypt/archive/blog.terminaldweller.com/:/certs/
     cap_drop:
       - ALL
     environment:
-      - SERVER_DEPLOYMENT_TYPE=deployment
+      - SERVER_DEPLOYMENT_TYPE=test
       - SERVER_LISTEN_PORT=9000
 networks:
   webnet:

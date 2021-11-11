@@ -17,7 +17,8 @@ body {
   font-family: "DejaVuSansMono NF", Helvetica, monospace;
   overflow-wrap: break-word;
   float: left;
-  width: 78%;
+  /* width: 78%; */
+  width: 95%;
 }
 
 .sidenav {

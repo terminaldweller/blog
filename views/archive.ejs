@@ -3,15 +3,17 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width">
-    <title>Blog</title>
+    <title>Archive</title>
     <link rel="stylesheet" href="/master.css" type="text/css" media="screen" title="no title" charset="utf-8">
   </head>
   <body>
     <script>0</script>
     <div class="article">
-    <%- data.blogHttp %>
-    <a href="/about">About</a>
-    <a href="/archive">Archive</a>
+      <% data.mds.forEach(function(md) { %>
+        <ul>
+          <li><a href=<%= "/mds/"+md %> target="_self" rel="noreferrer noopener" type="text/html"><%= md %></a></li>
+        </ul>
+      <% }) %>
     </div>
   </body>
 </html>

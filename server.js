@@ -23,6 +23,7 @@ const spdy = require("spdy");
 
 const app = express();
 app.use(express.static(path.join(__dirname, "css")));
+app.use(express.static(path.join(__dirname, "static")));
 app.set("views", path.join(__dirname, "views"));
 app.set("view engine", "ejs");
 app.engine("ejs", require("ejs").__express);
@@ -60,6 +61,21 @@ app.get("/health", (req, res) => {
   res.send(response);
 });
 
+app.get("/about", (req, res) => {
+  res.type("text/html");
+  res.sendFile(path.join(__dirname, "static/about.html"));
+});
+
+app.get("/archive", (req, res) => {
+  res.type("text/html");
+  res.render("archive", {
+    cache: true,
+    data: {
+      mds: fs.readdirSync(path.join(__dirname, "mds"), "utf-8"),
+    },
+  });
+});
+
 app.get("/robots.txt", (req, res) => {
   res.type("text/plain");
   let robots_txt = "Sitemap: http://blog.terminaldweller.com\n";
@@ -84,7 +100,7 @@ async function enumerateDir() {
   return await fs.readdirSync(path.join(__dirname, "mds"));
 }
 
-app.use(sitemap(enumerateDir, "http://blog.terminaldweller.com"));
+app.use(sitemap(enumerateDir, "https://blog.terminaldweller.com"));
 
 app.use((req, res) => {
   return res.status(404).send({ message: "Path" + req.url + "not found!" });
@@ -94,12 +110,24 @@ app.use((err, req, res) => {
   return res.status(500).send({ error: err });
 });
 
-spdy
-  .createServer(
-    {
-      key: fs.readFileSync("/certs/privkey1.pem", "utf-8"),
-      cert: fs.readFileSync("/certs/fullchain1.pem", "utf-8"),
-    },
-    app
-  )
-  .listen(9000);
+if (process.env.SERVER_DEPLOYMENT_TYPE == "deployment") {
+  spdy
+    .createServer(
+      {
+        key: fs.readFileSync("/certs/privkey1.pem", "utf-8"),
+        cert: fs.readFileSync("/certs/fullchain1.pem", "utf-8"),
+      },
+      app
+    )
+    .listen(process.env.SERVER_LISTEN_PORT || 9000);
+} else if (process.env.SERVER_DEPLOYMENT_TYPE == "test") {
+  spdy
+    .createServer(
+      {
+        key: fs.readFileSync("/certs/server.key", "utf-8"),
+        cert: fs.readFileSync("/certs/server.cert", "utf-8"),
+      },
+      app
+    )
+    .listen(process.env.SERVER_LISTEN_PORT || 9000);
+}

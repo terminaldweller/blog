@@ -9,6 +9,7 @@ COPY ./package.* /server/
 RUN cd /server && npm install --production
 COPY ./css /server/css/
 COPY ./views /server/views/
+COPY ./static /server/static/
 COPY ./mds /server/mds/
 COPY ./server.js /server/
 ENTRYPOINT ["/server/server.js"]
