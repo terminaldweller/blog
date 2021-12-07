@@ -41,3 +41,15 @@ a {
   color: #005f87;
   text-decoration: none;
 }
+
+hr {
+  color: #005f87;
+}
+
+.left-footer {
+  float: left;
+}
+
+.right-footer {
+  float: right;
+}

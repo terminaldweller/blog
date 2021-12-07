@@ -8,7 +8,7 @@ services:
       - webnet
     restart: unless-stopped
     ports:
-      - "19009:9000"
+      - "9000:9000"
     volumes:
       - /etc/letsencrypt/archive/blog.terminaldweller.com/:/certs/
     cap_drop:
