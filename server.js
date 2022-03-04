@@ -20,6 +20,9 @@ const mit = require("markdown-it")({ html: true })
     code: true,
   });
 const spdy = require("spdy");
+const helmet = require("helmet");
+const morgan = require("morgan");
+const pug = require("pug");
 
 const app = express();
 app.use(express.static(path.join(__dirname, "css")));
@@ -27,6 +30,8 @@ app.use(express.static(path.join(__dirname, "static")));
 app.set("views", path.join(__dirname, "views"));
 app.set("view engine", "ejs");
 app.engine("ejs", require("ejs").__express);
+app.use(helmet());
+app.use(morgan("combined"));
 
 function renderAndSend(req, res) {
   try {
@@ -84,6 +89,11 @@ app.get("/robots.txt", (req, res) => {
   robots_txt += "Crawl-Delay: 20";
   res.send(robots_txt);
 });
+
+// app.get("/rss/feed", (req, res) => {
+//   let html = pug.renderFile("./views/rss_feed.pug", merge(options, localls));
+//   res.send(html);
+// });
 
 app.get("/$", (req, res) => {
   renderAndSend(req, res);

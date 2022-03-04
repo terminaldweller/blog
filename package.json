@@ -21,12 +21,15 @@
     "express": "^4.17.1",
     "express-sitemap": "^1.8.0",
     "express-sitemap-xml": "^3.0.0",
+    "helmet": "^5.0.2",
     "jsdom": "^16.2.2",
     "katex": "^0.11.1",
     "markdown-it": "^11.0.0",
     "markdown-it-highlightjs": "^3.4.0",
     "markdown-it-multimd-table": "^4.0.2",
     "markdown-it-texmath": "^0.7.0",
+    "morgan": "^1.10.0",
+    "pug": "^3.0.2",
     "spdy": "^4.0.2"
   },
   "devDependencies": {
