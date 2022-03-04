@@ -1,0 +1,21 @@
+doctype xml
+rss(version='2.0', xmlns:atom='<a href="http://www.w3.org/2005/Atom" rel="nofollow">http://www.w3.org/2005/Atom</a>')
+    channel
+        title DevSmash
+        link <a href="http://devsmash.com" rel="nofollow">http://devsmash.com</a>
+        atom:link(href='<a href="http://devsmash.com/feed/rss" rel="nofollow">http://devsmash.com/feed/rss</a>', rel='self', type='application/rss+xml')
+        description Developers talking about stuff that developers like to talk about.
+        language en-US
+        if posts.length
+            lastBuildDate= new Date(posts[0].publishedAt).toUTCString()
+        each post in posts
+            item
+                title= post.title
+                link <a href="http://devsmash.com/blog/#{post.slug}" rel="nofollow">http://devsmash.com/blog/#{post.slug}</a>
+                description
+                    | <![CDATA[
+                    | !{post.teaser}
+                    p: a(href='<a href="http://devsmash.com/blog/#{post.slug}')!=" rel="nofollow">http://devsmash.com/blog/#{post.slug}')!=</a> 'Read more &raquo;'
+                    | ]]>
+                pubDate= new Date(post.publishedAt).toUTCString()
+                guid(isPermaLink='false') <a href="http://devsmash.com/blog/#{post.slug}"

@@ -33,6 +33,10 @@ app.engine("ejs", require("ejs").__express);
 app.use(helmet());
 app.use(morgan("combined"));
 
+async function enumerateDir() {
+  return await fs.readdirSync(path.join(__dirname, "mds"));
+}
+
 function renderAndSend(req, res) {
   try {
     let viewPath;
@@ -90,10 +94,13 @@ app.get("/robots.txt", (req, res) => {
   res.send(robots_txt);
 });
 
-// app.get("/rss/feed", (req, res) => {
-//   let html = pug.renderFile("./views/rss_feed.pug", merge(options, localls));
-//   res.send(html);
-// });
+app.get("/rss/feed", (req, res) => {
+  const compiledFunction = pug.compileFile("./views/rss_feed.pug");
+  const files = fs.readdirSync(path.join(__dirname, "mds"));
+  for (const file of files) {
+    res.send(compiledFunction(file));
+  }
+});
 
 app.get("/$", (req, res) => {
   renderAndSend(req, res);
@@ -105,10 +112,6 @@ app.get("/mds/:mdname$", (req, res) => {
   }
   renderAndSend(req, res);
 });
-
-async function enumerateDir() {
-  return await fs.readdirSync(path.join(__dirname, "mds"));
-}
 
 app.use(sitemap(enumerateDir, "https://blog.terminaldweller.com"));
 
