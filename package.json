@@ -28,6 +28,7 @@
     "markdown-it-highlightjs": "^3.4.0",
     "markdown-it-multimd-table": "^4.0.2",
     "markdown-it-texmath": "^0.7.0",
+    "mongoose": "^6.2.8",
     "morgan": "^1.10.0",
     "pug": "^3.0.2",
     "spdy": "^4.0.2"

@@ -25,12 +25,46 @@ const morgan = require("morgan");
 const pug = require("pug");
 
 const app = express();
+app.disable("x-powered-by");
 app.use(express.static(path.join(__dirname, "css")));
 app.use(express.static(path.join(__dirname, "static")));
 app.set("views", path.join(__dirname, "views"));
 app.set("view engine", "ejs");
 app.engine("ejs", require("ejs").__express);
-app.use(helmet());
+
+app.use(helmet.crossOriginEmbedderPolicy());
+app.use(helmet.crossOriginOpenerPolicy());
+app.use(helmet.crossOriginResourcePolicy());
+app.use(helmet.dnsPrefetchControl());
+app.use(helmet.expectCt());
+app.use(helmet.frameguard());
+app.use(helmet.hidePoweredBy());
+app.use(helmet.hsts());
+app.use(helmet.ieNoOpen());
+app.use(helmet.noSniff());
+app.use(helmet.originAgentCluster());
+app.use(helmet.permittedCrossDomainPolicies());
+app.use(helmet.referrerPolicy());
+app.use(helmet.xssFilter());
+app.use((req, res, next) => {
+  res.setHeader(
+    "Permissions-Policy",
+    "geolocation=(none),midi=(none),notifications=(none),push=(none),sync-xhr=(none),microphone=(none),camera=(none),magnetometer=(none),gyroscope=(none),speaker=(none),vibrate=(none),fullscreen=(self),payment=(none)"
+  );
+  next();
+});
+app.use(
+  helmet.contentSecurityPolicy({
+    useDefaults: false,
+    directives: {
+      baseUri: ["self"],
+      defaultSrc: ["self"],
+      scriptSrc: ["none"],
+      styleSrc: ["self", "https:", "unsafef-inline"],
+    },
+  })
+);
+
 app.use(morgan("combined"));
 
 async function enumerateDir() {

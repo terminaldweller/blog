@@ -6,6 +6,7 @@ services:
       context: ./
     networks:
       - webnet
+      - dbnet
     ports:
       - "19009:9000"
     cap_drop:
@@ -13,5 +14,32 @@ services:
     environment:
       - SERVER_DEPLOYMENT_TYPE=test
       - SERVER_LISTEN_PORT=9000
+    depends_on:
+      - mongo
+  mongo:
+    image: mongo:5.0
+    networks:
+      - dbnet
+    restart: on-failure
+    ports:
+      - "27117:27017"
+      - "127.0.0.1:27118:27018"
+      - "127.0.0.1:27119:27019"
+    volumes:
+      - db-data:/data/db
+    env:
+      - MONGO_INITDB_ROOT_USERNAME_FILE=/run/secrets/mongo_user
+      - MONGO_INITDB_ROOT_PASSWORD_FILE=/run/secrets/mongo_pass
+    secrets:
+      - mongo_user
+      - mongo_pass
 networks:
   webnet:
+  dbnet:
+volumes:
+  db-data:
+secrets:
+  mongo_user:
+    file: ./mongo_user
+  mongo_pass:
+    file: ./mongo_pass
