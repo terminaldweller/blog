@@ -49,7 +49,7 @@ app.use(helmet.xssFilter());
 app.use((req, res, next) => {
   res.setHeader(
     "Permissions-Policy",
-    "geolocation=(none),midi=(none),notifications=(none),push=(none),sync-xhr=(none),microphone=(none),camera=(none),magnetometer=(none),gyroscope=(none),speaker=(none),vibrate=(none),fullscreen=(self),payment=(none)"
+    "geolocation=(self),midi=(self),sync-xhr=(self),microphone=(self),camera=(self),magnetometer=(self),gyroscope=(self),fullscreen=(self),payment=(self),usb=(self)"
   );
   next();
 });
