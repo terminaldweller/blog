@@ -1,11 +1,11 @@
 version: "3.7"
 services:
-  web:
-    image: web
+  blog:
+    image: blog
     build:
-      context: ./
+      context: .
     networks:
-      - webnet
+      - blognet
       - dbnet
     ports:
       - "19009:9000"
@@ -16,30 +16,33 @@ services:
       - SERVER_LISTEN_PORT=9000
     depends_on:
       - mongo
+    secrets:
+      - mongo_user
+      - mongo_pass
   mongo:
     image: mongo:5.0
     networks:
       - dbnet
     restart: on-failure
     ports:
-      - "27117:27017"
+      - "127.0.0.1:27117:27017"
       - "127.0.0.1:27118:27018"
       - "127.0.0.1:27119:27019"
     volumes:
-      - db-data:/data/db
-    env:
+      - blog-data:/data/db
+    environment:
       - MONGO_INITDB_ROOT_USERNAME_FILE=/run/secrets/mongo_user
       - MONGO_INITDB_ROOT_PASSWORD_FILE=/run/secrets/mongo_pass
     secrets:
       - mongo_user
       - mongo_pass
 networks:
-  webnet:
+  blognet:
   dbnet:
 volumes:
-  db-data:
+  blog-data:
 secrets:
   mongo_user:
-    file: ./mongo_user
+    file: ./mongo_secrets/mongo_user
   mongo_pass:
-    file: ./mongo_pass
+    file: ./mongo_secrets/mongo_pass

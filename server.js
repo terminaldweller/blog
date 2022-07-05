@@ -22,15 +22,23 @@ const mit = require("markdown-it")({ html: true })
 const spdy = require("spdy");
 const helmet = require("helmet");
 const morgan = require("morgan");
-const pug = require("pug");
+// const pug = require("pug");
+const model = require("./model");
+
+model.dbInit();
+model.populateDB(model.blogPost);
 
 const app = express();
 app.disable("x-powered-by");
 app.use(express.static(path.join(__dirname, "css")));
 app.use(express.static(path.join(__dirname, "static")));
 app.set("views", path.join(__dirname, "views"));
+// app.set("view engine", "ejs");
+// app.engine("ejs", require("ejs").__express);
+// app.engine("pug", require("pug").renderFilej);
+// app.engine("pug", "pug");
 app.set("view engine", "ejs");
-app.engine("ejs", require("ejs").__express);
+app.set("view engine", "pug");
 
 app.use(helmet.crossOriginEmbedderPolicy());
 app.use(helmet.crossOriginOpenerPolicy());
@@ -85,7 +93,7 @@ function renderAndSend(req, res) {
     );
     //FIXME-this can obviously fail
     readStream.on("data", (chunk) => {
-      res.render("index", {
+      res.render("index.ejs", {
         cache: true,
         data: {
           blogHttp: mit.render(chunk),
@@ -111,7 +119,7 @@ app.get("/about", (req, res) => {
 
 app.get("/archive", (req, res) => {
   res.type("text/html");
-  res.render("archive", {
+  res.render("archive.ejs", {
     cache: true,
     data: {
       mds: fs.readdirSync(path.join(__dirname, "mds"), "utf-8"),
@@ -129,11 +137,19 @@ app.get("/robots.txt", (req, res) => {
 });
 
 app.get("/rss/feed", (req, res) => {
-  const compiledFunction = pug.compileFile("./views/rss_feed.pug");
-  const files = fs.readdirSync(path.join(__dirname, "mds"));
-  for (const file of files) {
-    res.send(compiledFunction(file));
-  }
+  model.blogPost
+    .find({})
+    .sort("-lastUpdatedAt")
+    .select("title slug lastUpdatedAt teaser")
+    .exec(function (err, posts) {
+      if (err) return err;
+      return res.render("rss_feed.pug", { cache: true, posts: posts });
+    });
+  // const compiledFunction = pug.compileFile("./views/rss_feed.pug");
+  // const files = fs.readdirSync(path.join(__dirname, "mds"));
+  // for (const file of files) {
+  //   res.send(compiledFunction(file));
+  // }
 });
 
 app.get("/$", (req, res) => {

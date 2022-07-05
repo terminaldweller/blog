@@ -6,12 +6,18 @@
     <title>Blog</title>
     <link rel="stylesheet" href="/master.css" type="text/css" media="screen" title="no title" charset="utf-8">
     <link rel="alternate" type="application/rss+xml" title="RSS" href="/rss/feed">
-    <!-- <link rel="alternate" type="application/atom+xml" title="RSS" href="/rss/feed"> -->
+    <!-- <link rel="alternate" type="application/atom+xml" title="RSS" href="/feed/rss"> -->
   </head>
   <body>
     <!-- <script>0</script> -->
     <div class="article">
     <%- data.blogHttp %>
+    <br/>
+    <hr/>
+    <br/>
+    <a class="left-footer">Keywords:</a>
+    <%- data.Keywords %>
+    <br/>
     <br/>
     <hr/>
     <br/>
