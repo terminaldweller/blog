@@ -18,4 +18,4 @@ rss(version='2.0', xmlns:atom='<a href="http://www.w3.org/2005/Atom" rel="nofoll
                     p: a(href='<a href="https://blog.terminaldweller.com/blog/#{post.slug} rel="nofollow">https://blog.terminaldweller.com/blog/#{post.slug}</a>') 'Read more &raquo;'
                     | ]]>
                 pubDate= new Date(post.lastUpdatedAt).toUTCString()
-                guid(isPermaLink='false') <a href="https://blog.terminaldweller.com/blog/#{post.slug}"
+                guid(isPermaLink='false') <a href="https://blog.terminaldweller.com/blog/#{post.slug}" rel="nofollow">https://blog.terminaldweller.com/blog/#{post.slug}</a>

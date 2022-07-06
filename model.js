@@ -54,6 +54,7 @@ function populateDB(model) {
     newBlogPost.save();
   });
 }
+
 module.exports = {
   blogPost: mongoose.model("BlogPost", BlogPostSchema),
   dbInit: dbInit,

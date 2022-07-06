@@ -123,12 +123,6 @@ app.get("/archive", (req, res) => {
         },
       });
     });
-  // res.render("archive.ejs", {
-  //   cache: true,
-  //   data: {
-  //     mds: fs.readdirSync(path.join(__dirname, "mds"), "utf-8"),
-  //   },
-  // });
 });
 
 app.get("/robots.txt", (req, res) => {
