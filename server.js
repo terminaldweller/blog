@@ -25,7 +25,6 @@ const morgan = require("morgan");
 const model = require("./model");
 
 model.dbInit();
-// model.populateDB(model.blogPost);
 
 const app = express();
 app.disable("x-powered-by");
