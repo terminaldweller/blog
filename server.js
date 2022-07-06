@@ -25,7 +25,7 @@ const morgan = require("morgan");
 const model = require("./model");
 
 model.dbInit();
-model.populateDB(model.blogPost);
+// model.populateDB(model.blogPost);
 
 const app = express();
 app.disable("x-powered-by");
@@ -141,7 +141,7 @@ app.get("/rss/feed", (req, res) => {
     .select("title slug lastUpdatedAt teaser")
     .exec(function (err, posts) {
       if (err) return err;
-      return res.render("rss_feed.pug", { cache: true, posts: posts });
+      return res.render("rss_feed_v2.pug", { cache: true, posts: posts });
     });
 });
 

@@ -1,0 +1,21 @@
+doctype xml
+rss(version='2.0')
+    channel
+        title deviblog
+        link https://blog.terminaldweller.com
+        description I talk about software here.
+        managingEditro devi@terminaldweller.com
+        webMaster devi@terminaldweller.com
+        language en-US
+        if posts.length
+            lastBuildDate= new Date(posts[0].lastUpdatedAt).toUTCString()
+        each post in posts
+            item
+                title= post.title
+                link https://blog.terminaldweller.com/posts/#{post.slug}
+                description
+                    | <![CDATA[
+                    | #{post.teaser}
+                    | ]]>
+                pubDate= new Date(post.lastUpdatedAt).toUTCString()
+                guid(isPermaLink='false') https://blog.terminaldweller.com/blog/#{post.slug}
