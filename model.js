@@ -46,9 +46,9 @@ function populateDB(model) {
       .toString();
     let newBlogPost = new model({
       title: fileName,
-      slug: "slug",
+      slug: fileName,
       body: fileContent,
-      teaser: "teaser",
+      teaser: fileName,
       keywords: ["kw1", "kw2"],
     });
     newBlogPost.save();

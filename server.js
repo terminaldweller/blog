@@ -22,7 +22,6 @@ const mit = require("markdown-it")({ html: true })
 const spdy = require("spdy");
 const helmet = require("helmet");
 const morgan = require("morgan");
-// const pug = require("pug");
 const model = require("./model");
 
 model.dbInit();
@@ -33,10 +32,6 @@ app.disable("x-powered-by");
 app.use(express.static(path.join(__dirname, "css")));
 app.use(express.static(path.join(__dirname, "static")));
 app.set("views", path.join(__dirname, "views"));
-// app.set("view engine", "ejs");
-// app.engine("ejs", require("ejs").__express);
-// app.engine("pug", require("pug").renderFilej);
-// app.engine("pug", "pug");
 app.set("view engine", "ejs");
 app.set("view engine", "pug");
 
@@ -79,31 +74,29 @@ async function enumerateDir() {
   return await fs.readdirSync(path.join(__dirname, "mds"));
 }
 
-function renderAndSend(req, res) {
-  try {
-    let viewPath;
-    if (req.path == "/") {
-      viewPath = "mds/cstruct2luatable.md";
-    } else {
-      viewPath = req.path;
-    }
-    let readStream = fs.createReadStream(
-      path.join(__dirname, viewPath),
-      "utf-8"
-    );
-    //FIXME-this can obviously fail
-    readStream.on("data", (chunk) => {
-      res.render("index.ejs", {
+function renderAndSend_v2(req, res) {
+  model.blogPost
+    .findOne(
+      { _slug: req.path },
+      {
+        projection: {
+          _id: 0,
+          title: 0,
+          teaser: 0,
+        },
+      }
+    )
+    .exec(function (err, blogPost) {
+      if (err) return err;
+      return res.render("index.ejs", {
         cache: true,
         data: {
-          blogHttp: mit.render(chunk),
-          mds: fs.readdirSync(path.join(__dirname, "mds"), "utf-8"),
+          blogHttp: mit.render(blogPost.body),
+          lastUpdatedAt: blogPost.lastUpdatedAt,
+          keywords: blogPost.keywords,
         },
       });
     });
-  } catch (err) {
-    console.log(err);
-  }
 }
 
 app.get("/health", (req, res) => {
@@ -119,12 +112,23 @@ app.get("/about", (req, res) => {
 
 app.get("/archive", (req, res) => {
   res.type("text/html");
-  res.render("archive.ejs", {
-    cache: true,
-    data: {
-      mds: fs.readdirSync(path.join(__dirname, "mds"), "utf-8"),
-    },
-  });
+  model.blogPost
+    .find({}, { _id: 0, body: 0, teaser: 0, keywords: 0, lastUpdatedAt: 0 })
+    .exec(function (err, blogPosts) {
+      if (err) return err;
+      res.render("archive.ejs", {
+        cache: true,
+        data: {
+          blogPosts: blogPosts,
+        },
+      });
+    });
+  // res.render("archive.ejs", {
+  //   cache: true,
+  //   data: {
+  //     mds: fs.readdirSync(path.join(__dirname, "mds"), "utf-8"),
+  //   },
+  // });
 });
 
 app.get("/robots.txt", (req, res) => {
@@ -145,22 +149,31 @@ app.get("/rss/feed", (req, res) => {
       if (err) return err;
       return res.render("rss_feed.pug", { cache: true, posts: posts });
     });
-  // const compiledFunction = pug.compileFile("./views/rss_feed.pug");
-  // const files = fs.readdirSync(path.join(__dirname, "mds"));
-  // for (const file of files) {
-  //   res.send(compiledFunction(file));
-  // }
 });
 
 app.get("/$", (req, res) => {
-  renderAndSend(req, res);
+  model.blogPost
+    .find({}, { projection: { _id: 0, title: 0, teaser: 0 } })
+    .limit(1)
+    .sort({ $natural: -1 })
+    .exec(function (err, blogPost) {
+      if (err) return err;
+      return res.render("index.ejs", {
+        cache: true,
+        data: {
+          blogHttp: mit.render(blogPost[0].body),
+          lastUpdatedAt: blogPost[0].lastUpdatedAt,
+          keywords: blogPost[0].keywords,
+        },
+      });
+    });
 });
 
-app.get("/mds/:mdname$", (req, res) => {
-  if (req.params["mdname"] == "") {
+app.get("/posts/:postName", (req, res) => {
+  if (req.params["postName"] == "") {
     res.write("nothing requested!");
   }
-  renderAndSend(req, res);
+  renderAndSend_v2(req, res);
 });
 
 app.use(sitemap(enumerateDir, "https://blog.terminaldweller.com"));
