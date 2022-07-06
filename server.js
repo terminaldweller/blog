@@ -22,42 +22,80 @@ const mit = require("markdown-it")({ html: true })
 const spdy = require("spdy");
 const helmet = require("helmet");
 const morgan = require("morgan");
-const pug = require("pug");
+const model = require("./model");
+
+model.dbInit();
 
 const app = express();
+app.disable("x-powered-by");
 app.use(express.static(path.join(__dirname, "css")));
 app.use(express.static(path.join(__dirname, "static")));
 app.set("views", path.join(__dirname, "views"));
 app.set("view engine", "ejs");
-app.engine("ejs", require("ejs").__express);
-app.use(helmet());
+app.set("view engine", "pug");
+
+app.use(helmet.crossOriginEmbedderPolicy());
+app.use(helmet.crossOriginOpenerPolicy());
+app.use(helmet.crossOriginResourcePolicy());
+app.use(helmet.dnsPrefetchControl());
+app.use(helmet.expectCt());
+app.use(helmet.frameguard());
+app.use(helmet.hidePoweredBy());
+app.use(helmet.hsts());
+app.use(helmet.ieNoOpen());
+app.use(helmet.noSniff());
+app.use(helmet.originAgentCluster());
+app.use(helmet.permittedCrossDomainPolicies());
+app.use(helmet.referrerPolicy());
+app.use(helmet.xssFilter());
+app.use((req, res, next) => {
+  res.setHeader(
+    "Permissions-Policy",
+    "geolocation=(self),midi=(self),sync-xhr=(self),microphone=(self),camera=(self),magnetometer=(self),gyroscope=(self),fullscreen=(self),payment=(self),usb=(self)"
+  );
+  next();
+});
+app.use(
+  helmet.contentSecurityPolicy({
+    useDefaults: false,
+    directives: {
+      baseUri: ["self"],
+      defaultSrc: ["self"],
+      scriptSrc: ["none"],
+      styleSrc: ["self", "https:", "unsafef-inline"],
+    },
+  })
+);
+
 app.use(morgan("combined"));
 
-function renderAndSend(req, res) {
-  try {
-    let viewPath;
-    if (req.path == "/") {
-      viewPath = "mds/cstruct2luatable.md";
-    } else {
-      viewPath = req.path;
-    }
-    let readStream = fs.createReadStream(
-      path.join(__dirname, viewPath),
-      "utf-8"
-    );
-    //FIXME-this can obviously fail
-    readStream.on("data", (chunk) => {
-      res.render("index", {
+async function enumerateDir() {
+  return await fs.readdirSync(path.join(__dirname, "mds"));
+}
+
+function renderAndSend_v2(req, res, slug) {
+  model.blogPost
+    .findOne(
+      { slug: slug },
+      {
+        projection: {
+          _id: 0,
+          title: 0,
+          teaser: 0,
+        },
+      }
+    )
+    .exec(function (err, blogPost) {
+      if (err) return err;
+      return res.render("index.ejs", {
         cache: true,
         data: {
-          blogHttp: mit.render(chunk),
-          mds: fs.readdirSync(path.join(__dirname, "mds"), "utf-8"),
+          blogHttp: mit.render(blogPost.body),
+          lastUpdatedAt: blogPost.lastUpdatedAt,
+          keywords: blogPost.keywords,
         },
       });
     });
-  } catch (err) {
-    console.log(err);
-  }
 }
 
 app.get("/health", (req, res) => {
@@ -73,12 +111,17 @@ app.get("/about", (req, res) => {
 
 app.get("/archive", (req, res) => {
   res.type("text/html");
-  res.render("archive", {
-    cache: true,
-    data: {
-      mds: fs.readdirSync(path.join(__dirname, "mds"), "utf-8"),
-    },
-  });
+  model.blogPost
+    .find({}, { _id: 0, body: 0, teaser: 0, keywords: 0, lastUpdatedAt: 0 })
+    .exec(function (err, blogPosts) {
+      if (err) return err;
+      res.render("archive.ejs", {
+        cache: true,
+        data: {
+          blogPosts: blogPosts,
+        },
+      });
+    });
 });
 
 app.get("/robots.txt", (req, res) => {
@@ -90,25 +133,42 @@ app.get("/robots.txt", (req, res) => {
   res.send(robots_txt);
 });
 
-// app.get("/rss/feed", (req, res) => {
-//   let html = pug.renderFile("./views/rss_feed.pug", merge(options, localls));
-//   res.send(html);
-// });
-
-app.get("/$", (req, res) => {
-  renderAndSend(req, res);
+app.get("/rss/feed", (req, res) => {
+  res.type("application/rss+xml");
+  model.blogPost
+    .find({})
+    .sort("-lastUpdatedAt")
+    .select("title slug lastUpdatedAt teaser")
+    .exec(function (err, posts) {
+      if (err) return err;
+      return res.render("rss_feed_v2.pug", { cache: true, posts: posts });
+    });
 });
 
-app.get("/mds/:mdname$", (req, res) => {
-  if (req.params["mdname"] == "") {
+app.get("/posts/:postName", (req, res) => {
+  if (req.params["postName"] == "") {
     res.write("nothing requested!");
   }
-  renderAndSend(req, res);
+  renderAndSend_v2(req, res, req.params.postName);
 });
 
-async function enumerateDir() {
-  return await fs.readdirSync(path.join(__dirname, "mds"));
-}
+app.get("/$", (req, res) => {
+  model.blogPost
+    .find({}, { projection: { _id: 0, title: 0, teaser: 0 } })
+    .limit(1)
+    .sort({ $natural: -1 })
+    .exec(function (err, blogPost) {
+      if (err) return err;
+      return res.render("index.ejs", {
+        cache: true,
+        data: {
+          blogHttp: mit.render(blogPost[0].body),
+          lastUpdatedAt: blogPost[0].lastUpdatedAt,
+          keywords: blogPost[0].keywords,
+        },
+      });
+    });
+});
 
 app.use(sitemap(enumerateDir, "https://blog.terminaldweller.com"));
 

@@ -9,9 +9,9 @@
   <body>
     <script>0</script>
     <div class="article">
-      <% data.mds.forEach(function(md) { %>
+      <% data.blogPosts.forEach(function(blogPost) { %>
         <ul>
-          <li><a href=<%= "/mds/"+md %> target="_self" rel="noreferrer noopener" type="text/html"><%= md %></a></li>
+          <li><a href=<%= "/posts/"+blogPost.slug %> target="_self" rel="noreferrer noopener" type="text/html"><%= blogPost.title %></a></li>
         </ul>
       <% }) %>
     </div>

@@ -1,0 +1,22 @@
+doctype xml
+rss(version='2.0', xmlns:atom='http://www.w3.org/2005/Atom')
+    channel
+        title deviblog
+        link https://blog.terminaldweller.com
+        atom:link(href='https://blog.terminaldweller.com/rss/feed', rel='self', type='application/rss+xml')
+        description I talk about software here.
+        managingEditor devi@terminaldweller.com (Farzad Sadeghi)
+        webMaster devi@terminaldweller.com (Farzad Sadeghi)
+        language en-US
+        if posts.length
+            lastBuildDate= new Date(posts[0].lastUpdatedAt).toUTCString()
+        each post in posts
+            item
+                title= post.title
+                link https://blog.terminaldweller.com/posts/#{post.slug}
+                description
+                    | <![CDATA[
+                    | #{post.teaser}
+                    | ]]>
+                pubDate= new Date(post.lastUpdatedAt).toUTCString()
+                guid(isPermaLink='false') https://blog.terminaldweller.com/blog/#{post.slug}
