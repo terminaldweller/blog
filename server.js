@@ -74,10 +74,10 @@ async function enumerateDir() {
   return await fs.readdirSync(path.join(__dirname, "mds"));
 }
 
-function renderAndSend_v2(req, res) {
+function renderAndSend_v2(req, res, slug) {
   model.blogPost
     .findOne(
-      { _slug: req.path },
+      { slug: slug },
       {
         projection: {
           _id: 0,
@@ -135,6 +135,7 @@ app.get("/robots.txt", (req, res) => {
 });
 
 app.get("/rss/feed", (req, res) => {
+  res.type("application/rss+xml");
   model.blogPost
     .find({})
     .sort("-lastUpdatedAt")
@@ -143,6 +144,13 @@ app.get("/rss/feed", (req, res) => {
       if (err) return err;
       return res.render("rss_feed_v2.pug", { cache: true, posts: posts });
     });
+});
+
+app.get("/posts/:postName", (req, res) => {
+  if (req.params["postName"] == "") {
+    res.write("nothing requested!");
+  }
+  renderAndSend_v2(req, res, req.params.postName);
 });
 
 app.get("/$", (req, res) => {
@@ -161,13 +169,6 @@ app.get("/$", (req, res) => {
         },
       });
     });
-});
-
-app.get("/posts/:postName", (req, res) => {
-  if (req.params["postName"] == "") {
-    res.write("nothing requested!");
-  }
-  renderAndSend_v2(req, res);
 });
 
 app.use(sitemap(enumerateDir, "https://blog.terminaldweller.com"));
