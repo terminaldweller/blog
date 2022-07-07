@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#!/root/.bun/bin/bun
 "use strict";
 
 const express = require("express");

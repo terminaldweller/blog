@@ -1,12 +1,18 @@
-FROM alpine:3.15 AS certbuilder
+# vi: ft=Dockerfile
+FROM alpine:3.16 AS certbuilder
 RUN apk add openssl
 WORKDIR /certs
 RUN openssl req -nodes -new -x509 -subj="/C=US/ST=Denial/L=springfield/O=Dis/CN=localhost" -keyout server.key -out server.cert
 
-FROM node:lts-alpine3.15
+FROM debian:bullseye-slim
+RUN apt update && apt-get install -y bash curl unzip
+RUN curl https://bun.sh/install | bash
+# COPY /root/.bun/bin/bun /usr/bin/
+ENV PATH="/root/.bun/bin:${PATH}"
 COPY --from=certbuilder /certs/ /certs
 COPY ./package.* /server/
-RUN cd /server && npm install --production
+WORKDIR /server
+RUN /root/.bun/bin/bun install
 COPY ./css /server/css/
 COPY ./views /server/views/
 COPY ./static /server/static/
