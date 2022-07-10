@@ -38,6 +38,7 @@ function dbInit() {
     });
 }
 
+// only used for testing, otherwise unused
 function populateDB(model) {
   let filePaths = fs.readdirSync(path.join(__dirname, "mds"));
   filePaths.forEach((fileName) => {
