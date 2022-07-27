@@ -4,4 +4,4 @@
 # blog
 It's the source code for my blog.<br/>
 You find the live instance [here](https://blog.terminaldweller.com)<br/>
-You also can use the RSS feed to get notified of when there are no posts.<br/>
+You also can use the RSS feed to get notified of when there are new posts.<br/>
