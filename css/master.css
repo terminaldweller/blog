@@ -53,3 +53,11 @@ hr {
 .right-footer {
   float: right;
 }
+
+a:link {
+  color: #005faf;
+}
+
+a:visited {
+  color: #008787;
+}
