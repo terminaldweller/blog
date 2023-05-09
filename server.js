@@ -185,11 +185,11 @@ if (process.env.SERVER_DEPLOYMENT_TYPE == "deployment") {
     .createServer(
       {
         key: fs.readFileSync(
-          "/etc/letsencrypt/live/blog.terminaldweller.com/fullchain.pem",
+          "/etc/letsencrypt/live/blog.terminaldweller.com/privkey.pem",
           "utf-8"
         ),
         cert: fs.readFileSync(
-          "/etc/letsencrypt/live/blog.terminaldweller.com/privkey.pem",
+          "/etc/letsencrypt/live/blog.terminaldweller.com/fullchain.pem",
           "utf-8"
         ),
       },
