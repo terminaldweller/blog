@@ -184,8 +184,14 @@ if (process.env.SERVER_DEPLOYMENT_TYPE == "deployment") {
   spdy
     .createServer(
       {
-        key: fs.readFileSync("/certs/privkey1.pem", "utf-8"),
-        cert: fs.readFileSync("/certs/fullchain1.pem", "utf-8"),
+        key: fs.readFileSync(
+          "/etc/letsencrypt/live/blog.terminaldweller.com/fullchain.pem",
+          "utf-8"
+        ),
+        cert: fs.readFileSync(
+          "/etc/letsencrypt/live/blog.terminaldweller.com/privkey.pem",
+          "utf-8"
+        ),
       },
       app
     )
