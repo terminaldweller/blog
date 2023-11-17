@@ -16,7 +16,7 @@ I can't be bothered to have different clients open all the time. I want to have 
 
 ## Two ways of solving this
 
-There is generally two ways one can try to solve this. number one is to just use a browser. Almost all forms of comm nowadays have a web client so basically one way of solving our problem is to a dedicated browser that has all the clients open. Mind you, there are even specialized and more lightweight browser offerings specifically geared towards this use-case but still this option is not ideal in terms of resources and the interface you're getting is not really unified.<br/>
+There is generally two ways one can try to solve this. Number one is to just use a browser. Almost all forms of comm nowadays have a web client so basically one way of solving our problem is to a dedicated browser that has all the clients open. Mind you, there are even specialized and more lightweight browser offerings specifically geared towards this use-case but still this option is not ideal in terms of resources and the interface you're getting is not really unified.<br/>
 
 ### The web app way
 

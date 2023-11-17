@@ -35,6 +35,9 @@ blogs = [
 ];
 
 // db.blogposts.insertMany([blog_entry_1, blog_entry_2, blog_entry_3]);
-db.blogposts.updateMany(blogs, {
-  upsert: true,
-});
+db.blogposts.updateMany(
+  { $set: blogs },
+  {
+    upsert: true,
+  }
+);
