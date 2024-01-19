@@ -1,5 +1,3 @@
-[original Medium post](https://medium.com/@thabogre/lazy-makefiles-ce1997412700)
-
 # Lazy Makefiles
 
 I kept finding myself needing to build some C or C++ code but I just couldn't be bothered to write a makefile from ground up. My life's too short for that. The code was either not that big of a deal or the build process was not anything complicated.<br/>
@@ -89,6 +87,9 @@ Depends on `$(TARGET)` by default, runs valgrind with `--leak-check=yes`. You pr
 ### format
 Runs clang-format on all your source files and header files and **__EDITS THEM IN PLACE__**. Expects a clang format file to be present in the directory.<br/>
 
+### js
+Builds the target using emscripten and generates a javascript file.<br/>
+
 ### clean and deepclean
 `clean` cleans almost everything. `deepclean` depends on `clean`. basically a two level scheme so you can have two different sets of clean commands.<br/>
 
@@ -96,3 +97,493 @@ Runs clang-format on all your source files and header files and **__EDITS THEM I
 prints out the condensed version of what I've been trying to put into words.<br/>
 
 Well that's about it.<br/>
+Below you can find the current(at the time of writing) versio of both the C and the Cpp makefiles.<br/>
+You can always find the latest versions [here](https://raw.githubusercontent.com/terminaldweller/scripts/main/makefilec) for C and [here](https://raw.githubusercontent.com/terminaldweller/scripts/main/makefilecpp) for Cpp.<br/>
+
+```make
+TARGET?=main
+SHELL=bash
+SHELL?=bash
+CC=clang
+CC?=clang
+ifdef OS
+CC_FLAGS=
+else
+CC_FLAGS=-fpic
+endif
+CC_EXTRA?=
+CTAGS_I_PATH?=./
+LD_FLAGS=
+EXTRA_LD_FLAGS?=
+ADD_SANITIZERS_CC= -g -fsanitize=address -fno-omit-frame-pointer
+ADD_SANITIZERS_LD= -g -fsanitize=address
+MEM_SANITIZERS_CC= -g -fsanitize=memory -fno-omit-frame-pointer
+MEM_SANITIZERS_LD= -g -fsanitize=memory
+UB_SANITIZERS_CC= -g -fsanitize=undefined -fno-omit-frame-pointer
+UB_SANITIZERS_LD= -g -fsanitize=undefined
+FUZZ_SANITIZERS_CC= -fsanitize=fuzzer,address -g -fno-omit-frame-pointer
+FUZZ_SANITIZERS_LD= -fsanitize=fuzzer,address -g -fno-omit-frame-pointer
+COV_CC= -fprofile-instr-generate -fcoverage-mapping
+COV_LD= -fprofile-instr-generate
+# BUILD_MODES are=RELEASE(default), DEBUG,ADDSAN,MEMSAN,UBSAN,FUZZ
+BUILD_MODE?=RELEASE
+#EXCLUSION_LIST='(\bdip)|(\bdim)'
+EXCLUSION_LIST='xxxxxx'
+OBJ_LIST:=$(patsubst %.c, %.o, $(shell find . -name '*.c' | grep -Ev $(EXCLUSION_LIST)))
+OBJ_COV_LIST:=$(patsubst %.c, %.ocov, $(shell find . -name '*.c' | grep -Ev $(EXCLUSION_LIST)))
+OBJ_DBG_LIST:=$(patsubst %.c, %.odbg, $(shell find . -name '*.c' | grep -Ev $(EXCLUSION_LIST)))
+ASM_LIST:=$(patsubst %.c, %.s, $(shell find . -name '*.c' | grep -Ev $(EXCLUSION_LIST)))
+WASM_LIST:=$(patsubst %.c, %.wasm, $(shell find . -name '*.c' | grep -Ev $(EXCLUSION_LIST)))
+WAST_LIST:=$(patsubst %.c, %.wast, $(shell find . -name '*.c' | grep -Ev $(EXCLUSION_LIST)))
+IR_LIST:=$(patsubst %.c, %.ir, $(shell find . -name '*.c' | grep -Ev $(EXCLUSION_LIST)))
+JS_LIST:=$(patsubst %.c, %.js, $(shell find . -name '*.c' | grep -Ev $(EXCLUSION_LIST)))
+AST_LIST:=$(patsubst %.c, %.ast, $(shell find . -name '*.c' | grep -Ev $(EXCLUSION_LIST)))
+
+ifeq ($(BUILD_MODE), ADDSAN)
+ifeq ($(CC), gcc)
+$(error This build mode is only useable with clang.)
+endif
+CC_EXTRA+=$(ADD_SANITIZERS_CC)
+EXTRA_LD_FLAGS+=$(ADD_SANITIZERS_LD)
+endif
+
+ifeq ($(BUILD_MODE), MEMSAN)
+ifeq ($(CC), gcc)
+$(error This build mode is only useable with clang.)
+endif
+CC_EXTRA+=$(MEM_SANITIZERS_CC)
+EXTRA_LD_FLAGS+=$(MEM_SANITIZERS_LD)
+endif
+
+ifeq ($(BUILD_MODE), UBSAN)
+ifeq ($(CC), gcc)
+$(error This build mode is only useable with clang.)
+endif
+CC_EXTRA+=$(UB_SANITIZERS_CC)
+EXTRA_LD_FLAGS+=$(UB_SANITIZERS_LD)
+endif
+
+ifeq ($(BUILD_MODE), FUZZ)
+ifeq ($(CXX), g++)
+$(error This build mode is only useable with clang++.)
+endif
+CXX_EXTRA+=$(FUZZ_SANITIZERS_CC)
+EXTRA_LD_FLAGS+=$(FUZZ_SANITIZERS_LD)
+endif
+
+SRCS:=$(wildcard *.c)
+HDRS:=$(wildcard *.h)
+CC_FLAGS+=$(CC_EXTRA)
+LD_FLAGS+=$(EXTRA_LD_FLAGS)
+
+.DEFAULT:all
+
+.PHONY:all clean help ASM SO TAGS WASM JS IR WAST A ADBG AST cppcheck DOCKER
+
+all:$(TARGET)
+
+everything:$(TARGET) A ASM SO $(TARGET)-static $(TARGET)-dbg ADBG TAGS $(TARGET)-cov WASM JS IR WAST AST DOCKER
+
+depend:.depend
+
+.depend:$(SRCS)
+  rm -rf .depend
+  $(CC) -MM $(CC_FLAGS) $^ > ./.depend
+  echo $(patsubst %.o:, %.odbg:, $(shell $(CC) -MM $(CC_FLAGS) $^)) | sed -r 's/[A-Za-z0-9\-\_]+\.odbg/\n&/g' >> ./.depend
+  echo $(patsubst %.o:, %.ocov:, $(shell $(CC) -MM $(CC_FLAGS) $^)) | sed -r 's/[A-Za-z0-9\-\_]+\.ocov/\n&/g' >> ./.depend
+
+-include ./.depend
+
+.c.o:
+  $(CC) $(CC_FLAGS) -c $< -o $@
+
+%.odbg:%.c
+  $(CC) $(CC_FLAGS) -g -c $< -o $@
+
+%.ocov:%.c
+  $(CC) $(CC_FLAGS) $(COV_CC) -c $< -o $@
+
+$(TARGET): $(OBJ_LIST)
+  $(CC) $(LD_FLAGS) $^ -o $@
+
+$(TARGET)-static: $(OBJ_LIST)
+  $(CC) $(LD_FLAGS) $^ -static -o $@
+
+$(TARGET)-dbg: $(OBJ_DBG_LIST)
+  $(CC) $(LD_FLAGS) $^ -g -o $@
+
+$(TARGET)-cov: $(OBJ_COV_LIST)
+  $(CC) $(LD_FLAGS) $^ $(COV_LD) -o $@
+
+cov: runcov
+  @llvm-profdata merge -sparse ./default.profraw -o ./default.profdata
+  @llvm-cov show $(TARGET)-cov -instr-profile=default.profdata
+
+covrep: runcov
+  @llvm-profdata merge -sparse ./default.profraw -o ./default.profdata
+  @llvm-cov report $(TARGET)-cov -instr-profile=default.profdata
+
+ASM:$(ASM_LIST)
+
+SO:$(TARGET).so
+
+A:$(TARGET).a
+
+ADBG:$(TARGET).adbg
+
+IR:$(IR_LIST)
+
+WASM:$(WASM_LIST)
+
+WAST:$(WAST_LIST)
+
+JS:$(JS_LIST)
+
+AST:$(AST_LIST)
+
+TAGS:tags
+
+#https://github.com/rizsotto/Bear
+BEAR: clean
+  bear -- make
+
+tags:$(SRCS)
+  $(shell $(CC) -c -I $(CTAGS_I_PATH) -M $(SRCS)|\
+    sed -e 's/[\\ ]/\n/g'|sed -e '/^$$/d' -e '/\.o:[ \t]*$$/d'|\
+    ctags -L - --c++-kinds=+p --fields=+iaS --extra=+q)
+
+%.s: %.c
+  $(CC) -S $< -o $@
+  # objdump -r -d -M intel -S $< > $@
+
+%.ir: %.c
+  $(CC) -emit-llvm -S -o $@ $<
+
+%.wasm: %.c
+  emcc $< -o $@
+
+%.wast: %.wasm
+  wasm2wat $< > $@
+
+%.js: %.c
+  emcc $< -s FORCE_FILESYSTEM=1 -s EXIT_RUNTIME=1 -o $@
+
+%.ast: %.c
+  $(CC) -Xclang -ast-dump -fsyntax-only $< > $@
+
+$(TARGET).so: $(OBJ_LIST)
+  $(CC) $(LD_FLAGS) $^ -shared -o $@
+
+$(TARGET).a: $(OBJ_LIST)
+  ar rcs $(TARGET).a $(OBJ_LIST)
+
+$(TARGET).adbg: $(OBJ_DBG_LIST)
+  ar rcs $(TARGET).adbg $(OBJ_DBG_LIST)
+
+runcov: $(TARGET)-cov
+  "./$(TARGET)-cov"
+
+test: $(TARGET)
+  "./$(TARGET)"
+
+run: $(TARGET)
+  "./$(TARGET)"
+
+valgrind: $(TARGET)
+  - valgrind --track-origins=yes --leak-check=full --show-leak-kinds=all "./$(TARGET)"
+
+cppcheck:
+  cppcheck $(SRCS)
+
+rundbg: $(TARGET)-dbg
+  gdb --batch --command=./debug.dbg --args "./$(TARGET)-dbg"
+
+format:
+  - clang-format -i $(SRCS) $(HDRS)
+
+DOCKER: Dockerfile
+  docker build -t proto ./
+
+clean:
+  - rm -f *.o *.s *.odbg *.ocov *.js *.ir *~ $(TARGET) $(TARGET).so $(TARGET)-static \
+  $(TARGET)-dbg $(TARGET).a $(TARGET)-cov *.wasm *.wast $(TARGET).adbg *.ast
+
+deepclean: clean
+  - rm tags
+  - rm .depend
+  - rm ./default.profraw ./default.profdata
+  - rm vgcore.*
+  - rm compile_commands.json
+  - rm *.gch
+
+help:
+  @echo "--all is the default target, runs $(TARGET) target"
+  @echo "--everything will build everything"
+  @echo "--SO will generate the so"
+  @echo "--ASM will generate assembly files"
+  @echo "--TAGS will generate tags file"
+  @echo "--BEAR will generate a compilation database"
+  @echo "--IR will generate llvm IR"
+  @echo "--JS will make the js file"
+  @echo "--AST will make the llvm ast file"
+  @echo "--WASM will make the wasm file"
+  @echo "--WAST will make the wasm text debug file"
+  @echo "--$(TARGET) builds the dynamically-linked executable"
+  @echo "--$(TARGET)-dbg will generate the debug build. BUILD_MODE should be set to DEBUG to work"
+  @echo "--$(TARGET)-static will statically link the executable to the libraries"
+  @echo "--$(TARGET)-cov is the coverage build"
+  @echo "--cov will print the coverage report"
+  @echo "--covrep will print the line coverage report"
+  @echo "--A will build the static library"
+  @echo "--TAGS will build the tags file"
+  @echo "--clean"
+  @echo "--deepclean will clean almost everything"
+```
+
+```make
+TARGET?=main
+SHELL=bash
+SHELL?=bash
+CXX=clang++
+CXX?=clang++
+ifdef OS
+CXX_FLAGS=-std=c++20
+else
+CXX_FLAGS=-std=c++20 -fpic
+endif
+CXX_EXTRA?=
+CTAGS_I_PATH?=./
+LD_FLAGS= -include-pch header.hpp.gch
+EXTRA_LD_FLAGS?=
+ADD_SANITIZERS_CC= -g -fsanitize=address -fno-omit-frame-pointer
+ADD_SANITIZERS_LD= -g -fsanitize=address
+MEM_SANITIZERS_CC= -g -fsanitize=memory -fno-omit-frame-pointer
+MEM_SANITIZERS_LD= -g -fsanitize=memory
+UB_SANITIZERS_CC= -g -fsanitize=undefined -fno-omit-frame-pointer
+UB_SANITIZERS_LD= -g -fsanitize=undefined
+FUZZ_SANITIZERS_CC= -fsanitize=fuzzer,address -g -fno-omit-frame-pointer
+FUZZ_SANITIZERS_LD= -fsanitize=fuzzer,address -g -fno-omit-frame-pointer
+COV_CXX= -fprofile-instr-generate -fcoverage-mapping
+COV_LD= -fprofile-instr-generate
+# BUILD_MODES are=RELEASE(default), DEBUG,ADDSAN,MEMSAN,UBSAN,FUZZ
+BUILD_MODE?=RELEASE
+#EXCLUSION_LIST='(\bdip)|(\bdim)'
+EXCLUSION_LIST='xxxxxx'
+OBJ_LIST:=$(patsubst %.cpp, %.o, $(shell find . -name '*.cpp' | grep -Ev $(EXCLUSION_LIST)))
+OBJ_COV_LIST:=$(patsubst %.cpp, %.ocov, $(shell find . -name '*.cpp' | grep -Ev $(EXCLUSION_LIST)))
+OBJ_DBG_LIST:=$(patsubst %.cpp, %.odbg, $(shell find . -name '*.cpp' | grep -Ev $(EXCLUSION_LIST)))
+ASM_LIST:=$(patsubst %.cpp, %.s, $(shell find . -name '*.cpp' | grep -Ev $(EXCLUSION_LIST)))
+WASM_LIST:=$(patsubst %.cpp, %.wasm, $(shell find . -name '*.cpp' | grep -Ev $(EXCLUSION_LIST)))
+WAST_LIST:=$(patsubst %.cpp, %.wast, $(shell find . -name '*.cpp' | grep -Ev $(EXCLUSION_LIST)))
+IR_LIST:=$(patsubst %.cpp, %.ir, $(shell find . -name '*.cpp' | grep -Ev $(EXCLUSION_LIST)))
+JS_LIST:=$(patsubst %.cpp, %.js, $(shell find . -name '*.cpp' | grep -Ev $(EXCLUSION_LIST)))
+AST_LIST:=$(patsubst %.cpp, %.ast, $(shell find . -name '*.cpp' | grep -Ev $(EXCLUSION_LIST)))
+
+ifeq ($(BUILD_MODE), ADDSAN)
+ifeq ($(CXX), g++)
+$(error This build mode is only useable with clang++.)
+endif
+CXX_EXTRA+=$(ADD_SANITIZERS_CC)
+EXTRA_LD_FLAGS+=$(ADD_SANITIZERS_LD)
+endif
+
+ifeq ($(BUILD_MODE), MEMSAN)
+ifeq ($(CXX), g++)
+$(error This build mode is only useable with clang++.)
+endif
+CXX_EXTRA+=$(MEM_SANITIZERS_CC)
+EXTRA_LD_FLAGS+=$(MEM_SANITIZERS_LD)
+endif
+
+ifeq ($(BUILD_MODE), UBSAN)
+ifeq ($(CXX), g++)
+$(error This build mode is only useable with clang++.)
+endif
+CXX_EXTRA+=$(UB_SANITIZERS_CC)
+EXTRA_LD_FLAGS+=$(UB_SANITIZERS_LD)
+endif
+
+ifeq ($(BUILD_MODE), FUZZ)
+ifeq ($(CXX), g++)
+$(error This build mode is only useable with clang++.)
+endif
+CXX_EXTRA+=$(FUZZ_SANITIZERS_CC)
+EXTRA_LD_FLAGS+=$(FUZZ_SANITIZERS_LD)
+endif
+
+SRCS:=$(wildcard *.cpp)
+HDRS:=$(wildcard *.h)
+CXX_FLAGS+=$(CXX_EXTRA)
+LD_FLAGS+=$(EXTRA_LD_FLAGS)
+
+.DEFAULT:all
+
+.PHONY:all clean help ASM SO TAGS WASM JS exe IR WAST A ADBG AST cppcheck DOCKER
+
+all:exe
+
+everything:$(TARGET) A ASM SO $(TARGET)-static $(TARGET)-dbg ADBG TAGS $(TARGET)-cov WASM JS IR WAST AST DOCKER
+
+depend:.depend
+
+.depend:$(SRCS)
+  rm -rf .depend
+  $(CXX) -MM $(CXX_FLAGS) $^ > ./.depend
+  echo $(patsubst %.o:, %.odbg:, $(shell $(CXX) -MM $(CXX_FLAGS) $^)) | sed -r 's/[A-Za-z0-9\-\_]+\.odbg/\n&/g' >> ./.depend
+  echo $(patsubst %.o:, %.ocov:, $(shell $(CXX) -MM $(CXX_FLAGS) $^)) | sed -r 's/[A-Za-z0-9\-\_]+\.ocov/\n&/g' >> ./.depend
+
+-include ./.depend
+
+.cpp.o: header.hpp.gch
+  $(CXX) $(CXX_FLAGS) -c $< -o $@
+
+%.odbg:%.cpp
+  $(CXX) $(CXX_FLAGS) -g -c $< -o $@
+
+%.ocov:%.cpp
+  $(CXX) $(CXX_FLAGS) $(COV_CXX) -c $< -o $@
+
+header.hpp.gch:header.hpp
+  $(CXX) $(CXX_FLAGS) -c $< -o $@
+
+exe: header.hpp.gch $(TARGET)
+
+$(TARGET): $(OBJ_LIST)
+  $(CXX) $(LD_FLAGS) $^ -o $@
+
+$(TARGET)-static: $(OBJ_LIST)
+  $(CXX) $(LD_FLAGS) $^ -static -o $@
+
+$(TARGET)-dbg: $(OBJ_DBG_LIST)
+  $(CXX) $(LD_FLAGS) $^ -g -o $@
+
+$(TARGET)-cov: $(OBJ_COV_LIST)
+  $(CXX) $(LD_FLAGS) $^ $(COV_LD) -o $@
+
+cov: runcov
+  @llvm-profdata merge -sparse ./default.profraw -o ./default.profdata
+  @llvm-cov show $(TARGET)-cov -instr-profile=default.profdata
+
+covrep: runcov
+  @llvm-profdata merge -sparse ./default.profraw -o ./default.profdata
+  @llvm-cov report $(TARGET)-cov -instr-profile=default.profdata
+
+ASM:$(ASM_LIST)
+
+SO:$(TARGET).so
+
+A:$(TARGET).a
+
+ADBG:$(TARGET).adbg
+
+IR:$(IR_LIST)
+
+WASM:$(WASM_LIST)
+
+WAST:$(WAST_LIST)
+
+JS:$(JS_LIST)
+
+AST:$(AST_LIST)
+
+TAGS:tags
+
+#https://github.com/rizsotto/Bear
+BEAR: clean
+  bear -- make
+
+tags:$(SRCS)
+  $(shell $(CXX) -c -I $(CTAGS_I_PATH) -M $(SRCS)|\
+    sed -e 's/[\\ ]/\n/g'|sed -e '/^$$/d' -e '/\.o:[ \t]*$$/d'|\
+    ctags -L - --c++-kinds=+p --fields=+iaS --extra=+q)
+
+%.s: %.cpp
+  $(CXX) -S $< -o $@
+  # objdump -r -d -M intel -S $< > $@
+
+%.ir: %.cpp
+  $(CXX) -emit-llvm -S -o $@ $<
+
+%.wasm: %.cpp
+  em++ $< -o $@
+
+%.wast: %.wasm
+  wasm2wat $< > $@
+
+%.js: %.cpp
+  em++ $< -s FORCE_FILESYSTEM=1 -s EXIT_RUNTIME=1 -o $@
+
+%.ast: %.cpp
+  $(CXX) -Xclang -ast-dump -fsyntax-only $< > $@
+
+$(TARGET).so: $(OBJ_LIST)
+  $(CXX) $(LD_FLAGS) $^ -shared -o $@
+
+$(TARGET).a: $(OBJ_LIST)
+  ar rcs $(TARGET).a $(OBJ_LIST)
+
+$(TARGET).adbg: $(OBJ_DBG_LIST)
+  ar rcs $(TARGET).adbg $(OBJ_DBG_LIST)
+
+runcov: $(TARGET)-cov
+  "./$(TARGET)-cov"
+
+test: $(TARGET)
+  "./$(TARGET)"
+
+run: $(TARGET)
+  "./$(TARGET)"
+
+valgrind: $(TARGET)
+  - valgrind --track-origins=yes --leak-check=full --show-leak-kinds=all "./$(TARGET)"
+
+cppcheck:
+  cppcheck $(SRCS)
+
+rundbg: $(TARGET)-dbg
+  gdb --batch --command=./debug.dbg --args "./$(TARGET)-dbg"
+
+format:
+  - clang-format -i $(SRCS) $(HDRS)
+
+DOCKER: Dockerfile
+  docker buld -t proto ./
+
+clean:
+  - rm -f *.o *.dis *.odbg *.ocov *.js *.ir *~ $(TARGET) $(TARGET).so $(TARGET)-static \
+    $(TARGET)-dbg $(TARGET).a $(TARGET)-cov *.wasm *.wast $(TARGET).adbg *.ast
+
+deepclean: clean
+  - rm tags
+  - rm .depend
+  - rm ./default.profraw ./default.profdata
+  - rm vgcore.*
+  - rm compile_commands.json
+  - rm *.gch
+
+help:
+  @echo "--all is the default target, runs $(TARGET) target"
+  @echo "--everything will build everything"
+  @echo "--SO will generate the so"
+  @echo "--ASM will generate assembly files"
+  @echo "--TAGS will generate tags file"
+  @echo "--BEAR will generate a compilation database"
+  @echo "--IR will generate llvm IR"
+  @echo "--$(TARGET) builds the dynamically-linked executable"
+  @echo "--$(TARGET)-dbg will generate the debug build. BUILD_MODE should be set to DEBUG to work"
+  @echo "--$(TARGET)-static will statically link the executable to the libraries"
+  @echo "--$(TARGET)-cov is the coverage build"
+  @echo "--cov will print the coverage report"
+  @echo "--covrep will print the line coverage report"
+  @echo "--A will build the static library"
+  @echo "--TAGS will build the tags file"
+  @echo "--clean"
+  @echo "--deepclean will clean almost everything"
+```
+
+<p>
+  <div class="timestamp">timestamp:1705630055</div>
+  <div class="version">version:1.0.0</div>
+  <div class="rsslink">https://blog.terminaldweller.com/rss/feed</div>
+</p>
+<br>
