@@ -340,3 +340,11 @@ Any feedback, suggestions and/or fixes to the tutorial is much appreciated.<br/>
 I needed to turn a C struct into a lua table for an application I'm working [on](https://github.com/bloodstalker/mutator/tree/master/bruiser). Further down the line, I needed to do the same for a lot more C structs with the possibility of me having to do the same for a lot more C structs. I just couldn't bring myself to do it manually for that many C structs so I decided to work on a code generator that does that for me. The result is [luatablegen](https://github.com/bloodstalker/luatablegen).<br/>
 `luatablegen` is a simple script that takes the description of your C structures in an XML file and generates the C code for your new tables and metatables. It does everything we did by hand automatically for us.<br/>
 `lautablegen` is in its early stages, so again, any feedback or help will be appreciated.<br/>
+
+<p>
+  <div class="timestamp">timestamp:1705630055</div>
+  <div class="version">version:1.0.0</div>
+  <div class="rsslink">https://blog.terminaldweller.com/rss/feed</div>
+  <div class="originalurl">https://raw.githubusercontent.com/terminaldweller/blog/main/mds/cstruct2luatable.md</div>
+</p>
+<br>

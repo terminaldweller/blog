@@ -193,5 +193,6 @@ volumes:
   <div class="timestamp">timestamp:1699398469</div>
   <div class="version">version:0.1.0</div>
   <div class="rsslink">https://blog.terminaldweller.com/rss/feed</div>
+  <div class="originalurl">https://raw.githubusercontent.com/terminaldweller/blog/main/mds/oneclientforeverything.md</div>
 </p>
 <br>

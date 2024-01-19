@@ -100,6 +100,8 @@ Well that's about it.<br/>
 Below you can find the current(at the time of writing) versio of both the C and the Cpp makefiles.<br/>
 You can always find the latest versions [here](https://raw.githubusercontent.com/terminaldweller/scripts/main/makefilec) for C and [here](https://raw.githubusercontent.com/terminaldweller/scripts/main/makefilecpp) for Cpp.<br/>
 
+## C
+
 ```make
 TARGET?=main
 SHELL=bash
@@ -340,6 +342,7 @@ help:
   @echo "--deepclean will clean almost everything"
 ```
 
+## Cpp
 ```make
 TARGET?=main
 SHELL=bash
@@ -583,7 +586,8 @@ help:
 
 <p>
   <div class="timestamp">timestamp:1705630055</div>
-  <div class="version">version:1.0.0</div>
+  <div class="version">version:1.1.0</div>
   <div class="rsslink">https://blog.terminaldweller.com/rss/feed</div>
+  <div class="originalurl">https://raw.githubusercontent.com/terminaldweller/blog/main/mds/lazymakefiles.md</div>
 </p>
 <br>

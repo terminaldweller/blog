@@ -26,7 +26,7 @@ blogs = [
     title: "One Chat Client For Everything",
     slug: "one_chat_client_for_everything",
     body: fs.readFileSync(
-      path.join(__dirname) + "/mds/oneclientforeverything.md"
+      path.join(__dirname) + "/mds/oneclientforeverything.md",
     ),
     teaser: "One Chat Client For Everything",
     keywords: "irc,matrix,mattermost,matterbridge,bitlbee,irssi",
@@ -34,10 +34,10 @@ blogs = [
   },
 ];
 
-// db.blogposts.insertMany([blog_entry_1, blog_entry_2, blog_entry_3]);
+// db.blogposts.insertMany(blogs);
 db.blogposts.updateMany(
   { $set: blogs },
   {
     upsert: true,
-  }
+  },
 );
