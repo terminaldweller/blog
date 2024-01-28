@@ -1,15 +1,14 @@
 # One Client for Everything
 
-
 # Table of Contents
+
 1. [Foreword](#foreword)
 2. [Two ways of solving this](#two-ways-of-solving-this)
 3. [The web app way](#the-web-app-way)
 4. [gui or terminal client](#gui-or-terminal-client)
 5. [Matrix or IRC](#matrix-or-irc)
- 
+
 ## Foreword
- 
 
 First let's talk about the problem we're trying to solve here. I want to have a unified interface into all the communication forms that I use.<br/>
 I can't be bothered to have different clients open all the time. I want to have one client that takes care of all things mostly well.<br/>
@@ -43,7 +42,7 @@ Also as an added bonus, starting from the next irssi release which should be irs
 Matrix and IRC both have a rich ecosystem of bridges. Matrix has a growing fan base which means more and more bridges or tools with similar functionality will be releases for it. Contrast that with IRC where that number seems to be smaller than Matrix but still is very much alive and well.<br/>
 
 ## [bitlbee-libpurple](https://github.com/bitlbee/bitlbee)
- 
+
 ```
 it'll be bitlbee
 ```
@@ -52,8 +51,8 @@ bitlbee is a bridge software for IRC. The distinguishing feature for bitlbee is 
 You could also use libpurple as the backend for bitlbee ([link](https://wiki.bitlbee.org/HowtoPurple)).<br/>
 libpurple has an origin story similar to libreadline. Basically it used to live inside pidgin, but later on it was turned into a library so that other applications could use it as well.<br/>
 
-
 List of protocols supported by libpurple:<br/>
+
 ```
 aim
 bitlbee-discord
@@ -82,25 +81,29 @@ steam
 telegram-tdlib
 zephyr
 ```
- 
+
 ## [matterbridge](https://github.com/42wim/matterbridge)
+
 matterbridge is an everything-to-everything bridge.<br/>
 
 Please keep in mind that with matterbridge, you don't get the full functionality of a protocol as in you get no private messages and such. You get the ability to join public chat rooms or whatever they call it in that protocol.<br/>
- 
+
 ## bridge ircds
 
 ### [matterircd](https://github.com/42wim/matterircd)
+
 a mattermost bridge that emulates an ircd as the name implies.
 
 ### [matrix2051](https://github.com/progval/matrix2051)
+
 another bridge that emulates an ircd, but for matrix.
 
 ### [irslackd](https://github.com/adsr/irslackd)
+
 a bridge to slack that emulates an ircd.
 
-
 ### docker compose
+
 [Here](https://github.com/ezkrg/docker-bitlbee-libpurple)'s the original Dockerfile. You can find mine [here](https://github.com/terminaldweller/docker-bitlbee-libpurple).<br/>
 And here's the docker compose file I use that goes with that:<br/>
 
@@ -124,7 +127,18 @@ services:
       - "172.17.0.1:8667:6667"
     restart: unless-stopped
     user: "bitlbee:bitlbee"
-    command: ["/usr/sbin/bitlbee", "-F","-n","-u","bitlbee","-c","/var/lib/bitlbee/bitlbee.conf", "-d","/var/lib/bitlbee"]
+    command:
+      [
+        "/usr/sbin/bitlbee",
+        "-F",
+        "-n",
+        "-u",
+        "bitlbee",
+        "-c",
+        "/var/lib/bitlbee/bitlbee.conf",
+        "-d",
+        "/var/lib/bitlbee",
+      ]
     dns:
       - 9.9.9.9
     volumes:

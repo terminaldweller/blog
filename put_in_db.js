@@ -32,6 +32,16 @@ blogs = [
     keywords: "irc,matrix,mattermost,matterbridge,bitlbee,irssi",
     lastUpdatedAt: Date.now(),
   },
+  {
+    title: "How to Get your SMS on IRC",
+    slug: "how_to_get_your_sms_on_irc",
+    body: fs.readFileSync(
+      path.join(__dirname) + "/mds/howtogetyourSMSonIRC.md",
+    ),
+    teaser: "How to Get your SMS on IRC",
+    keywords: "irc,bot,sms",
+    lastUpdatedAt: Date.now(),
+  },
 ];
 
 // db.blogposts.insertMany(blogs);
