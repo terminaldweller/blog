@@ -55,7 +55,26 @@ We can put the basic auth cerdentials in the url:
 https://user:pass@sms.mywebhook.com
 ```
 
-#### Deployment
+Also do please remember that on the app side we need to add the authorization header like so:<br/>
+
+```json
+{"Content-Type": "application/json"; "Authorization": "Basic base64-encoded-username:password"}
+```
+
+As for the url, use your endpoint without using the username and passwor in the URI.<br/>
+
+### Dev works
+
+You can find the finished code [here](https://github.com/terminaldweller/sms-webhook).<br/>
+
+Here's a brief explanation of what the code does:<br/>
+We launch the irc bot in a goroutine. The web hook server will only respond to POST requests on `/sms` after a successful basic http authentication.<br/>
+In our case there is no reason not to use a randomized username as well. So effectively we will have two secrets this way. You can create a new user in the pocketbase admin panel. Pocketbase comes with a default collection for users so just create a new entry in there.<br/>
+
+- The code will respond with a 401 for all failed authentication attempts.<br/>
+- We dont fill out missing credentials for non-existant users to make timing attacks harder. Thats something we can do later.<br/>
+
+### Deployment
 
 ```nginx
 events {
@@ -160,7 +179,7 @@ volumes:
 
 <p>
   <div class="timestamp">timestamp:1706042815</div>
-  <div class="version">version:1.0.0</div>
+  <div class="version">version:1.1.0</div>
   <div class="rsslink">https://blog.terminaldweller.com/rss/feed</div>
   <div class="originalurl">https://raw.githubusercontent.com/terminaldweller/blog/main/mds/lazymakefiles.md</div>
 </p>
