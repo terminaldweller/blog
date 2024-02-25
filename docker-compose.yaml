@@ -11,8 +11,8 @@ services:
     ports:
       - "9000:9000"
     volumes:
-      - /etc/letsencrypt/live/blog.terminaldweller.com/fullchain.pem:/etc/letsencrypt/live/blog.terminaldweller.com/fullchain.pem:ro
-      - /etc/letsencrypt/live/blog.terminaldweller.com/privkey.pem:/etc/letsencrypt/live/blog.terminaldweller.com/privkey.pem:ro
+      - /etc/letsencrypt/live/blog.terminaldweller.com-0002/fullchain.pem:/etc/letsencrypt/live/blog.terminaldweller.com/fullchain.pem:ro
+      - /etc/letsencrypt/live/blog.terminaldweller.com-0002/privkey.pem:/etc/letsencrypt/live/blog.terminaldweller.com/privkey.pem:ro
     cap_drop:
       - ALL
     environment:

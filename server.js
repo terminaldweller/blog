@@ -51,7 +51,7 @@ app.use(helmet.xssFilter());
 app.use((req, res, next) => {
   res.setHeader(
     "Permissions-Policy",
-    "geolocation=(self),midi=(self),sync-xhr=(self),microphone=(self),camera=(self),magnetometer=(self),gyroscope=(self),fullscreen=(self),payment=(self),usb=(self)"
+    "geolocation=(self),midi=(self),sync-xhr=(self),microphone=(self),camera=(self),magnetometer=(self),gyroscope=(self),fullscreen=(self),payment=(self),usb=(self)",
   );
   next();
 });
@@ -64,7 +64,7 @@ app.use(
       scriptSrc: ["none"],
       styleSrc: ["self", "https:", "unsafef-inline"],
     },
-  })
+  }),
 );
 
 app.use(morgan("combined"));
@@ -74,6 +74,7 @@ async function enumerateDir() {
 }
 
 function renderAndSend_v2(req, res, slug) {
+  console.log(slug);
   model.blogPost
     .findOne(
       { slug: slug },
@@ -83,7 +84,7 @@ function renderAndSend_v2(req, res, slug) {
           title: 0,
           teaser: 0,
         },
-      }
+      },
     )
     .exec(function (err, blogPost) {
       if (err) return err;
@@ -186,14 +187,14 @@ if (process.env.SERVER_DEPLOYMENT_TYPE == "deployment") {
       {
         key: fs.readFileSync(
           "/etc/letsencrypt/live/blog.terminaldweller.com/privkey.pem",
-          "utf-8"
+          "utf-8",
         ),
         cert: fs.readFileSync(
           "/etc/letsencrypt/live/blog.terminaldweller.com/fullchain.pem",
-          "utf-8"
+          "utf-8",
         ),
       },
-      app
+      app,
     )
     .listen(process.env.SERVER_LISTEN_PORT || 9000);
 } else if (process.env.SERVER_DEPLOYMENT_TYPE == "test") {
@@ -203,7 +204,7 @@ if (process.env.SERVER_DEPLOYMENT_TYPE == "deployment") {
         key: fs.readFileSync("/certs/server.key", "utf-8"),
         cert: fs.readFileSync("/certs/server.cert", "utf-8"),
       },
-      app
+      app,
     )
     .listen(process.env.SERVER_LISTEN_PORT || 9000);
 }
