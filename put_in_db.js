@@ -45,7 +45,7 @@ blogs = [
   {
     title:
       "What to do with your DNS when ODoH's Trust-Me-Bruh Model doesn't work for you",
-    slug: "What_to_do_with_your_DNS_when_ODoHs_Trust_Me_Bruh_Model_doesnt_work_for_you",
+    slug: "What_to_do_with_DNS",
     body: fs.readFileSync(path.join(__dirname) + "/mds/DNS.md"),
     teaser:
       "What to do with your DNS when ODoH's Trust-Me-Bruh Model doesn't work for you",
