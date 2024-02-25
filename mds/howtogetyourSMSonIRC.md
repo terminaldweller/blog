@@ -181,6 +181,6 @@ volumes:
   <div class="timestamp">timestamp:1706042815</div>
   <div class="version">version:1.1.0</div>
   <div class="rsslink">https://blog.terminaldweller.com/rss/feed</div>
-  <div class="originalurl">https://raw.githubusercontent.com/terminaldweller/blog/main/mds/lazymakefiles.md</div>
+  <div class="originalurl">https://raw.githubusercontent.com/terminaldweller/blog/main/mds/howtogetyourSMSonIRC.md</div>
 </p>
 <br>
