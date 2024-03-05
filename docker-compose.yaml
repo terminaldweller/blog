@@ -1,4 +1,4 @@
-version: "3.7"
+version: "3.9"
 services:
   blog:
     image: blog
@@ -24,7 +24,7 @@ services:
       - mongo_user
       - mongo_pass
   mongo:
-    image: mongo:5.0
+    image: mongo:7
     networks:
       - dbnet
     restart: on-failure

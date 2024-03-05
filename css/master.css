@@ -61,3 +61,9 @@ a:link {
 a:visited {
   color: #008787;
 }
+
+pre {
+  border: 2px solid #005f87;
+  padding: 10px;
+  margin: 10px;
+}
