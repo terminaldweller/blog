@@ -52,6 +52,14 @@ blogs = [
     keywords: "DNS,DoH,DoT,ODoH,Tor,dnscrypt-proxy,vagrant",
     lastUpdatedAt: Date.now(),
   },
+  {
+    title: "After NTP comes NTS",
+    slug: "after_ntp_comes_nts",
+    body: fs.readFileSync(path.join(__dirname) + "/mds/NTP.md"),
+    teaser: "After NTP comes NTS",
+    keywords: "NTP,NTS,SOCKS5",
+    lastUpdatedAt: Date.now(),
+  },
 ];
 
 db.blogposts.insertMany(blogs);
