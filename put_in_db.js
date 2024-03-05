@@ -5,12 +5,12 @@ const fs = require("fs");
 const path = require("path");
 // db = connect("http://mongo:mongo@127.0.0.1:27117");
 
-blogs = [
+var blogs = [
   {
     title: "Turning C structs into Lua tables",
     slug: "c_struct_lua_table",
     body: fs.readFileSync(path.join(__dirname) + "/mds/cstruct2luatable.md"),
-    teaser: "Turning C structures into Lua tables",
+    teaser: fs.readFileSync(path.join(__dirname) + "/mds/cstruct2luatable.txt"),
     keywords: "c,lua",
     lastUpdatedAt: Date.now(),
   },
@@ -18,7 +18,7 @@ blogs = [
     title: "Lazy Makefiles",
     slug: "lazy_makefile",
     body: fs.readFileSync(path.join(__dirname) + "/mds/lazymakefiles.md"),
-    teaser: "Lazy Makefiles",
+    teaser: fs.readFileSync(path.join(__dirname) + "/mds/lazymakefiles.txt"),
     keywords: "makefile,c,c++",
     lastUpdatedAt: Date.now(),
   },
@@ -28,7 +28,9 @@ blogs = [
     body: fs.readFileSync(
       path.join(__dirname) + "/mds/oneclientforeverything.md",
     ),
-    teaser: "One Chat Client For Everything",
+    teaser: fs.readFileSync(
+      path.join(__dirname) + "/mds/oneclientforeverything.txt",
+    ),
     keywords: "irc,matrix,mattermost,matterbridge,bitlbee,irssi",
     lastUpdatedAt: Date.now(),
   },
@@ -38,7 +40,9 @@ blogs = [
     body: fs.readFileSync(
       path.join(__dirname) + "/mds/howtogetyourSMSonIRC.md",
     ),
-    teaser: "How to Get your SMS on IRC",
+    teaser: fs.readFileSync(
+      path.join(__dirname) + "/mds/howtogetyourSMSonIRC.txt",
+    ),
     keywords: "irc,bot,sms",
     lastUpdatedAt: Date.now(),
   },
@@ -47,8 +51,7 @@ blogs = [
       "What to do with your DNS when ODoH's Trust-Me-Bruh Model doesn't work for you",
     slug: "what_to_do_with_your_dns",
     body: fs.readFileSync(path.join(__dirname) + "/mds/DNS.md"),
-    teaser:
-      "What to do with your DNS when ODoH's Trust-Me-Bruh Model doesn't work for you",
+    teaser: fs.readFileSync(path.join(__dirname) + "/mds/DNS.txt"),
     keywords: "DNS,DoH,DoT,ODoH,Tor,dnscrypt-proxy,vagrant",
     lastUpdatedAt: Date.now(),
   },
@@ -56,7 +59,7 @@ blogs = [
     title: "After NTP comes NTS",
     slug: "after_ntp_comes_nts",
     body: fs.readFileSync(path.join(__dirname) + "/mds/NTP.md"),
-    teaser: "After NTP comes NTS",
+    teaser: fs.readFileSync(path.join(__dirname) + "/mds/NTP.txt"),
     keywords: "NTP,NTS,SOCKS5",
     lastUpdatedAt: Date.now(),
   },
