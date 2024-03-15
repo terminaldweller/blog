@@ -99,6 +99,23 @@ function renderAndSend_v2(req, res, slug) {
     });
 }
 
+function renderTagPage(req, res, tag) {
+  model.blogPost
+    .find(
+      { keywords: { $in: [tag] } },
+      { projection: { _id: 0, title: 0, teaser: 0, body: 0, keywords: 0 } },
+    )
+    .exec(function (err, blogPosts) {
+      if (err) return err;
+      return res.render("tags.ejs", {
+        cache: true,
+        data: {
+          blogPosts: blogPosts,
+        },
+      });
+    });
+}
+
 app.get("/health", (req, res) => {
   res.type("application/json");
   let response = { isOK: "True", error: "" };
@@ -151,6 +168,13 @@ app.get("/posts/:postName", (req, res) => {
     res.write("nothing requested!");
   }
   renderAndSend_v2(req, res, req.params.postName);
+});
+
+app.get("/tags/:tagName", (req, res) => {
+  if (req.params["tagName"] == "") {
+    res.write("nothing requested!");
+  }
+  renderTagPage(req, res, req.params.tagName);
 });
 
 app.get("/$", (req, res) => {

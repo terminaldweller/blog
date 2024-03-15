@@ -1,9 +1,7 @@
 "use strict";
-// mongosh --host 127.0.0.1 --port 27117 -u mongo -p mongo -f put_in_db.js
 
 const fs = require("fs");
 const path = require("path");
-// db = connect("http://mongo:mongo@127.0.0.1:27117");
 
 var blogs = [
   {
@@ -11,7 +9,7 @@ var blogs = [
     slug: "c_struct_lua_table",
     body: fs.readFileSync(path.join(__dirname) + "/mds/cstruct2luatable.md"),
     teaser: fs.readFileSync(path.join(__dirname) + "/mds/cstruct2luatable.txt"),
-    keywords: "c,lua",
+    keywords: ["c", "lua"],
     lastUpdatedAt: Date.now(),
   },
   {
@@ -19,7 +17,7 @@ var blogs = [
     slug: "lazy_makefile",
     body: fs.readFileSync(path.join(__dirname) + "/mds/lazymakefiles.md"),
     teaser: fs.readFileSync(path.join(__dirname) + "/mds/lazymakefiles.txt"),
-    keywords: "makefile,c,c++",
+    keywords: ["makefile", "c", "c++"],
     lastUpdatedAt: Date.now(),
   },
   {
@@ -31,7 +29,14 @@ var blogs = [
     teaser: fs.readFileSync(
       path.join(__dirname) + "/mds/oneclientforeverything.txt",
     ),
-    keywords: "irc,matrix,mattermost,matterbridge,bitlbee,irssi",
+    keywords: [
+      "irc",
+      "matrix",
+      "mattermost",
+      "matterbridge",
+      "bitlbee",
+      "irssi",
+    ],
     lastUpdatedAt: Date.now(),
   },
   {
@@ -43,7 +48,7 @@ var blogs = [
     teaser: fs.readFileSync(
       path.join(__dirname) + "/mds/howtogetyourSMSonIRC.txt",
     ),
-    keywords: "irc,bot,sms",
+    keywords: ["irc", "bot", "sms"],
     lastUpdatedAt: Date.now(),
   },
   {
@@ -52,7 +57,7 @@ var blogs = [
     slug: "what_to_do_with_your_dns",
     body: fs.readFileSync(path.join(__dirname) + "/mds/DNS.md"),
     teaser: fs.readFileSync(path.join(__dirname) + "/mds/DNS.txt"),
-    keywords: "DNS,DoH,DoT,ODoH,Tor,dnscrypt-proxy,vagrant",
+    keywords: ["DNS", "DoH", "DoT", "ODoH", "Tor", "dnscrypt-proxy", "vagrant"],
     lastUpdatedAt: Date.now(),
   },
   {
@@ -60,7 +65,7 @@ var blogs = [
     slug: "after_ntp_comes_nts",
     body: fs.readFileSync(path.join(__dirname) + "/mds/NTP.md"),
     teaser: fs.readFileSync(path.join(__dirname) + "/mds/NTP.txt"),
-    keywords: "NTP,NTS,SOCKS5",
+    keywords: ["NTP", "NTS", "SOCKS5"],
     lastUpdatedAt: Date.now(),
   },
 ];
