@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width">
+    <title>Tag</title>
+    <link rel="stylesheet" href="/master.css" type="text/css" media="screen" title="no title" charset="utf-8">
+    <link rel="alternate" type="application/rss+xml" title="RSS" href="/rss/feed">
+  </head>
+  <body>
+    <!-- <script>0</script> -->
+    <br/>
+    <hr/>
+    <br/>
+    <% data.blogPosts.forEach(function(blogPost){ %>
+        <ul>
+        <li><a href=<%= "/posts/"+ blogPost.slug %> target="_self" rel="noreferrer noopener" type="text/html"><%= blogPost.slug %></a></li>
+        </ul>
+    <% }) %>
+    <br/>
+    <br/>
+    <hr/>
+    <br/>
+  </body>
+</html>
