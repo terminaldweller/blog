@@ -14,7 +14,7 @@
     <br/>
     <% data.blogPosts.forEach(function(blogPost){ %>
         <ul>
-        <li><a href=<%= "/posts/"+ blogPost.slug %> target="_self" rel="noreferrer noopener" type="text/html"><%= blogPost.slug %></a></li>
+        <li><a href=<%= "/posts/"+ blogPost.slug %> target="_self" rel="noreferrer noopener" type="text/html"><%= blogPost.title %></a></li>
         </ul>
     <% }) %>
     <br/>
