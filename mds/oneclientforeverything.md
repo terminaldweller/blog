@@ -203,9 +203,87 @@ volumes:
   matterircddb:
 ```
 
+### SMS
+I have an entire post about how one can get their SMS on IRC [here](posts/how_to_get_your_sms_on_irc).</br>
+You need a piece of software on your phone to forward the SMS to a web hook server and then we send the SMS over to IRC.</br>
+You can find the web-hook server that I use [here](https://github.com/terminaldweller/sms-webhook).</br>
+
+### where to sink all the bridges
+Bridges connect two things. You need to have a sink for your bridges. I was contemplating making a lot of invite-only channels protected by password on public networks then I found out about [ergo](https://github.com/ergochat/ergo).</br>
+I'd say the main advantage of using ergo is, it's easy to setup. You don't need any other services to run to get basic functionality like chanserv or nickserv.</br>
+You don't even need a bouncer if you need to have your messages when your client disconnects. ergo has that functionality built-in.</br>
+Here are some other perks:</br>
+
+* ergo allow you to define a "private" IRC network. You do that by requiring SASL while connecting, so others can't connect to your instance without having an account
+* it is under active development
+* it has good documentation
+* its one executable written in go so it's very easy to deploy
+
+### bots
+
+We have LLMs now. The genie is out of the box. They are useful.</br>'
+I needed a bunch of them to I wrote [milla](https://github.com/terminaldweller/milla).</br>
+At the time of writing milla supports chatgpt, gemini and of course ollama.</br>
+
+#### Deploying milla
+
+```yaml
+version: "3.9"
+services:
+  milla:
+    image: milla
+    build:
+      context: .
+    deploy:
+      resources:
+        limits:
+          memory: 64M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+    networks:
+      - millanet
+    restart: unless-stopped
+    command: ["--config", "/opt/milla/config.toml"]
+    volumes:
+      - ./config.toml:/opt/milla/config.toml
+    cap_drop:
+      - ALL
+    dns:
+      - 9.9.9.9
+    environment:
+      - SERVER_DEPLOYMENT_TYPE=deployment
+    entrypoint: ["/milla/milla"]
+networks:
+  millanet:
+```
+
+```toml
+ircServer = "irc.terminaldweller.com"
+ircPort = 6697
+ircNick = "mybot"
+ircSaslUser = "mybot"
+ircSaslPass = "mypass"
+ircChannel = "#mychannel"
+ollamaEndpoint = ""
+temp = 0.2
+ollamaSystem = ""
+requestTimeout = 10
+millaReconnectDelay = 60
+enableSasl = true
+model = "llama2-uncensored"
+chromaStyle = "rose-pine-moon"
+chromaFormatter = "terminal256"
+provider = "ollama" # ollama, chatgpt, gemini
+apikey = "key"
+topP = 0.9
+topK = 20
+```
+
 <p>
-  <div class="timestamp">timestamp:1699398469</div>
-  <div class="version">version:0.1.0</div>
+  <div class="timestamp">timestamp:1713480455</div>
+  <div class="version">version:1.0.0</div>
   <div class="rsslink">https://blog.terminaldweller.com/rss/feed</div>
   <div class="originalurl">https://raw.githubusercontent.com/terminaldweller/blog/main/mds/oneclientforeverything.md</div>
 </p>

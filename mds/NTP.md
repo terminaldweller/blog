@@ -1,7 +1,7 @@
-# After NTP Comes NTS
+# After NTP Comes NTS. After NTS comes sdwdate.
 
 Well for this one I will be talking a bit about NTP and NTS.<br/>
-Unlike the DNS post there isnt much going on here.<br/>
+Unlike the DNS post there isn't much going on here.<br/>
 
 NTP is plain-text, NTS uses TLS so if our requests are tampered with, we can know.<br/>
 There is the "oooh, you cant see what I'm sending now" but in this case its NTP so the content being secret is not necessarily more important than making sure the content has not been modified(guarantee of integrity).<br/>
@@ -12,6 +12,8 @@ But before we go any further, lets talk about what we are trying to achieve here
 - REQ-001: The NTP(NTS) requests shall be anonymous
 - REQ-002: It shall be evient when an NTP(NTS) requests has been tampered with
 - REQ-003: It should not be known which time servers are being used upstream by the client
+
+If you are wondering why any of this even matters you can have a look [here](https://www.whonix.org/wiki/Time_Attacks).</br>
 
 Now talk about the problem. The protocol is fine. We are sending TCP with TLS here. That's brilliant. We get all this:<br/>
 
@@ -27,7 +29,7 @@ Now talk about the problem. The protocol is fine. We are sending TCP with TLS he
 * Performance: NTS must not significantly degrade the quality of the time transfer. The encryption and authentication used when actually transferring time should be lightweight.
 ```
 
-exerpt from [RFC 8915](https://www.rfc-editor.org/rfc/rfc8915)
+Excerpt from [RFC 8915](https://www.rfc-editor.org/rfc/rfc8915)
 
 If we find a client that lets us use a SOCKS5 proxy, then we can send our NTS requests over Tor and then call it a day.<br/>
 REQ-002 and REQ-003 are being satisfied by using TLS. The missing piece is REQ-001, anonymizing the requests.<br/>
@@ -38,7 +40,7 @@ Unfortunately [chrony](https://gitlab.com/chrony/chrony) and [ntpd-rs](https://g
 
 - for ntpd-rs look [here](https://github.com/pendulum-project/ntpd-rs/discussions/1365)
 
-Which menas our setup is not complete.<br/>
+Which means our setup is not complete.<br/>
 
 ## Implementation
 
@@ -92,7 +94,7 @@ listen = "10.167.131.1:123"
 listen = "[::1]:123"
 ```
 
-```config
+```conf
 nts enable
 nts key /etc/letsencrypt/live/nts.dehein.org/privkey.pem
 nts cert /etc/letsencrypt/live/nts.dehein.org/fullchain.pem mintls TLS1.3
@@ -153,14 +155,91 @@ volumes:
   vault:
 ```
 
+## What comes after NTS
+
+Above we looked at NTP and NTS. We failed to find a client that supports SOCKS5 but that's a trivial matter.<br/>
+What is not trivial, however, is how NTS and NTP work, and by that I mean you will still have to ask a server to tell you the time.<br/>
+Doing so over Tor or other anonymizing networks should be fine but we can choose to try out another method of doing things.<br/>
+Enter `sdwdate`
+
+### sdwdate
+
+It still has the same flaw as NTP/NTS as in we still have to trust a server not to lie [please look here](https://www.kicksecure.com/wiki/Sdwdate#sdwdate_Source_Pools).<br/>
+Personally, It is a bit of a disappointment that the protocol that's supposed to be oh-so-much-shinier and newer than NTP has the same flawed mechanism as NTP.<br/>
+Now granted having hardware that tells you the time so that you can share that with everyone else is not something trivial or readily-available but this only makes sdwdate desirable in the absence of an NTS client that support SOCKS5 proxy.<br/>
+Once that is done, the larger user pool of NTS/NTP will offer more protection against the smaller userbase of sdwdate.<br/>
+sdwdate gives a table of comparison between itself and NTP. Let's take at look at that:<br/>
+
+Let's take a look at `sdwdate`. It is a roller-coaster. And I do mean that. So don't make up your mind until the very end.
+There is a comparison between NTP and sdwdate made [here](https://www.kicksecure.com/wiki/Sdwdate#Sdwdate_vs_NTP) by kicksecure themselves.<br/>
+
+|category|sdwdate|ntp|
+|--------|-------|---|
+|written in memory-safe language|Yes|No|
+|distributed trust|Yes|No|
+|secure connection by default|Yes|No|
+|gradual clock adjustments|Yes|Yes|
+|daemon|Yes|Yes|
+|functional over tor|Yes|No|
+|tor not required|No|Yes|
+|client, time fetcher|Yes|Yes|
+|Server, time provider|No|Yes|
+|AppArmor profile|Yes|Yes|
+|systemd security hardening,seccomp|Yes|?|
+|drop-in config folder|Yes|No|
+|proxy support|Yes|No|
+|possible to secure by default on GNU/Linux distribution level|Yes|No|
+|secure|Yes|No|
+|optional GUI|Yes|No|
+
+- memory-safety: I mean its good and all that sdwdate uses a memory-safe language(python) but NTP is a protocol. Not sure how NTP is bound to a single programming language. The one client we mentioned before uses rust which guarantees memory safety.
+- secure connection by default: NTS uses TLS v1.3 . Not sure why sdwdate is being compared against NTP and not NTS.
+- functional over Tor: again, NTS uses TCP which can pass through a SOCKS5 proxy as is implemented by the current incarnation of Tor. Also, not sure, but are we comparing against the NTP protocol or a specific implementation?
+- Tor not required: what if I want to use [i2p](https://github.com/PurpleI2P/i2pd) or [yggdrasil](https://github.com/yggdrasil-network/yggdrasil-go) to sync time over? Why does it have to be Tor?
+- apparmor profile: not sure why this is even included. You can write one for NTP implementations.
+- systemd security hardening, seccomp: same as above. You can do it for NTP/NTS implementations as well.
+- drop-in config folder: what's a folder? Is that supposed to be a directory? Second, what does that even mean? And third, who is writing these? The only kind of people who make this sort of mistake are people who use MS Windows more than Linux. This is official kicksecure documentation. You have Windows users writing these for the ultra secure and hardened "Linux", I'll say it again, "Linux", distro?
+- proxy support: again, NTS uses TCP so it supports SOCKS5 proxies as well but for whatever reason we are comparing against NTP(though whether we are comparing against the protocol or an implementation is something left to be decided by the next generation of humans)
+- possible to secure by default on GNU/Linux distribution level: whats the GNU/Linux distribution level? What does this even mean? You can secure it on the OS level? I mean it's software so I would hope that it would be possible to secure it on the software level.
+- secure: what are the criteria? Secure against what? And again, why are we comparing to NTP and not NTS?
+- optional GUI: again not sure why we keep zig-zagging between comparing implementations and the protocols.
+In conclusion, why is that table even there? What purpose does it even serve?
+
+If we were going to base our judgement on the documentation provided on kicksecure's website, I am sorry to say that `sdwdate` does a very poor job but fortunately that's not all there is to it.<br/>
+
+Now let's go take a look at the github README for the project:<br/>
+
+```txt
+At randomized intervals, sdwdate connects to a variety of webservers and extracts the time stamps from http headers (RFC 2616))
+```
+
+This is our first spark of brilliance.<br/>
+The second spark is when we consider the practical meaning of only being able to use Tor v3 addresses. Like a wise man once said:<br/>
+
+```txt
+amateurs practice something until they can get it right. pros practice something until they can't get it wrong.
+```
+
+The result of using only Tor v3 addresses is that you cannot leak your real IP address no matter what happens. You either have a working Tor proxy in which case the IP address will be that of the exit node or none at all.
+
+Now we know we definitely are dealing with a very promising solution.</br>
+'sdwdate' extracts the time stamp in the http header so we are not asking a known NTP server about the time, we are just doing a normal http request.</br>
+
+## DISCLAIMER
+
+Although unrelated, it is worth noting that the kicksecure docs are pretty good even if you are not planning on using kicksecure.<br/>
+
 ## Links
 
 - [RFC 8915](https://www.rfc-editor.org/rfc/rfc8915)
 - [Here](https://github.com/jauderho/nts-servers) you can find a list of publicly available servers that support NTS
+- [sdwdate's github page](https://github.com/Kicksecure/sdwdate)
+- [sdwdate doc](https://www.kicksecure.com/wiki/Sdwdate)
+- [RFC 2616](https://www.rfc-editor.org/rfc/rfc2616)
 
 <p>
-  <div class="timestamp">timestamp:1709418680</div>
-  <div class="version">version:1.0.0</div>
+  <div class="timestamp">timestamp:1713478033</div>
+  <div class="version">version:1.1.0</div>
   <div class="rsslink">https://blog.terminaldweller.com/rss/feed</div>
   <div class="originalurl">https://raw.githubusercontent.com/terminaldweller/blog/main/mds/NTP.md</div>
 </p>
