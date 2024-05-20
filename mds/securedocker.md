@@ -1,7 +1,5 @@
 # Docker, Linux, Security. Kinda.
 
-Let's take it from the top.<br/>
-
 We will be exploring some Linux features in the context of a docker application container. Another way of explaining it would be to say we will talk about how to make more secure application containers.
 We will not talk about firewall and apparmor because they are tools that enhance security on the host in general and not specific to a docker application container. A secure host means a more secure application container but that is discussion for another post.<br/>
 We will focus on Linux containers since FreeBSD containers are still experimental(see [here](https://wiki.freebsd.org/Docker) and [here](https://github.com/samuelkarp/runj)). Yes, windows containers exist.<br/>
@@ -187,7 +185,7 @@ type=SECCOMP msg=audit(1716144132.339:4036736): auid=1000 uid=1000 gid=1000 ses=
 type=SECCOMP msg=audit(1716144132.339:4036737): auid=1000 uid=1000 gid=1000 ses=1 subj=unconfined pid=19633 comm="bash" exe="/usr/bin/bash" sig=0 arch=c000003e syscall=270 compat=0 ip=0x7fa5859d77bc code=0x7ffc0000AUID="devi" UID="devi" GID="devi" ARCH=x86_64 SYSCALL=pselect6
 ```
 
-Docker allows to do the [same](https://docs.docker.com/engine/security/seccomp/). We can give docker a seccomp profile to filter out the syscalls that are not required for a specific container.<br/>
+Docker allows us to do the [same](https://docs.docker.com/engine/security/seccomp/). We can give docker a seccomp profile to filter out the syscalls that are not required for a specific container.<br/>
 You can find the default docker seccomp profile [here](https://github.com/moby/moby/blob/master/profiles/seccomp/default.json).<br/>
 
 ## Namespaces
@@ -221,10 +219,12 @@ sudo ip netns exec ${PHONE_NS} dhclient ${IF}
 
 ```sh
 $ sudo ip netns exec home_ns curl -4 icanhaveip.com
-69.158.246.92
+113.158.237.102
 $ curl -4 icanhasip.com
-99.211.192.175
+114.201.132.98
 ```
+
+**_HINT_**: The IP addresses are made up. The only thing that matters is that they are different.<br/>
 
 Since we have the android phone's interface on another namespace the two cannot interfere with each other. This is pretty much how docker uses namespaces.<br/>
 Without a network namespace we would have to make a small VM, run a VPN on the VM and then make a socks5 proxy to the VM from the host and then have applications pass their traffic through a socks5 proxy with varying degrees of success.<br/>
@@ -433,16 +433,16 @@ Now lets look at the provenance attestations.
 docker buildx imagetools inspect terminaldweller/milla:main --format "{{ json .Provenance.SLSA }}"
 ```
 
-And [here]() you can look at the result.<br/>
+And [here](https://gist.github.com/terminaldweller/033ae07a9e685db85b18eb822dea4be3) you can look at the result.<br/>
 
 ## Further Reading
 
 - [man 7 cgroups](https://manpages.debian.org/bookworm/manpages/cgroups.7.en.html)
 - system containers using [lxc/incus](https://github.com/lxc/incus)
 - [katacontainers](https://katacontainers.io/)
-- <p>
-    <div class="timestamp">timestamp:1716163133</div>
-    <div class="version">version:1.0.0</div>
-    <div class="rsslink">https://blog.terminaldweller.com/rss/feed</div>
-    <div class="originalurl">https://raw.githubusercontent.com/terminaldweller/blog/main/mds/securedocker.md</div>
-  </p>
+<p>
+  <div class="timestamp">timestamp:1716163133</div>
+  <div class="version">version:1.0.0</div>
+  <div class="rsslink">https://blog.terminaldweller.com/rss/feed</div>
+  <div class="originalurl">https://raw.githubusercontent.com/terminaldweller/blog/main/mds/securedocker.md</div>
+</p>
