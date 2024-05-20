@@ -68,6 +68,14 @@ var blogs = [
     keywords: ["NTP", "NTS", "SOCKS5"],
     lastUpdatedAt: Date.now(),
   },
+  {
+    title: "Docker, Linux, Security. Kinda.",
+    slug: "docker_linux_security",
+    body: fs.readFileSync(path.join(__dirname) + "/mds/securedocker.md"),
+    teaser: fs.readFileSync(path.join(__dirname) + "/mds/securedocker.txt"),
+    keywords: ["docker", "linux", "security"],
+    lastUpdatedAt: Date.now(),
+  },
 ];
 
 db.blogposts.insertMany(blogs);
