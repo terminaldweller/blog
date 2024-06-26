@@ -1,7 +1,7 @@
 # Making a Disposable Firefox Instance
 
 We want to make a disposable firefox instance.<br/>
-Why firefox? well the only other choice is chromium really. Mozilla are no choir boys either. Basically we are choosing between the lesser of two evils here. There is also the who gogole killing off manifest v2.<br/>
+Why firefox? well the only other choice is chromium really. Mozilla are no choir boys either. Basically we are choosing between the lesser of two evils here. There is also the whole google killing off manifest v2.<br/>
 Qutebrowser and netsurf are solid but for this one, we will choose something that has more compatibility.<br/>
 Now let's talk about the requirements and goals for this lil undertaking of ours:
 
