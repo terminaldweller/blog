@@ -76,6 +76,16 @@ var blogs = [
     keywords: ["docker", "linux", "security"],
     lastUpdatedAt: Date.now(),
   },
+  {
+    title: "A Disposable Firefox Instance",
+    slug: "disposable_firefox_instance",
+    body: fs.readFileSync(path.join(__dirname) + "/mds/disposablefirefox.md"),
+    teaser: fs.readFileSync(
+      path.join(__dirname) + "/mds/disposablefirefox.txt",
+    ),
+    keywords: ["vagrant", "linux", "libvirt", "firefox", "qemu", "ufw"],
+    lastUpdatedAt: Date.now(),
+  },
 ];
 
 db.blogposts.insertMany(blogs);

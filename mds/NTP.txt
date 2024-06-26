@@ -4,7 +4,7 @@ Well for this one I will be talking a bit about NTP and NTS. Unlike the
 DNS post there isn’t much going on here.
 
 NTP is plain-text, NTS uses TLS so if our requests are tampered with, we
-can know. There is the ``oooh, you cant see what I’m sending now'' but
+can know. There is the "`oooh, you cant see what I’m sending now`" but
 in this case its NTP so the content being secret is not necessarily more
 important than making sure the content has not been modified(guarantee
 of integrity).
@@ -179,7 +179,7 @@ SOCKS5 but that’s a trivial matter. What is not trivial, however, is how
 NTS and NTP work, and by that I mean you will still have to ask a server
 to tell you the time. Doing so over Tor or other anonymizing networks
 should be fine but we can choose to try out another method of doing
-things. Enter `sdwdate`
+things. Enter `+sdwdate+`
 
 ==== sdwdate
 
@@ -196,7 +196,7 @@ done, the larger user pool of NTS/NTP will offer more protection against
 the smaller userbase of sdwdate. sdwdate gives a table of comparison
 between itself and NTP. Let’s take at look at that:
 
-Let’s take a look at `sdwdate`. It is a roller-coaster. And I do mean
+Let’s take a look at `+sdwdate+`. It is a roller-coaster. And I do mean
 that. So don’t make up your mind until the very end. There is a
 comparison between NTP and sdwdate made
 https://www.kicksecure.com/wiki/Sdwdate#Sdwdate_vs_NTP[here] by
@@ -246,7 +246,7 @@ directory? Second, what does that even mean? And third, who is writing
 these? The only kind of people who make this sort of mistake are people
 who use MS Windows more than Linux. This is official kicksecure
 documentation. You have Windows users writing these for the ultra secure
-and hardened ``Linux'', I’ll say it again, ``Linux'', distro?
+and hardened "`Linux`", I’ll say it again, "`Linux`", distro?
 * proxy support: again, NTS uses TCP so it supports SOCKS5 proxies as
 well but for whatever reason we are comparing against NTP(though whether
 we are comparing against the protocol or an implementation is something
@@ -262,8 +262,8 @@ implementations and the protocols. In conclusion, why is that table even
 there? What purpose does it even serve?
 
 If we were going to base our judgement on the documentation provided on
-kicksecure’s website, I am sorry to say that `sdwdate` does a very poor
-job but fortunately that’s not all there is to it.
+kicksecure’s website, I am sorry to say that `+sdwdate+` does a very
+poor job but fortunately that’s not all there is to it.
 
 Now let’s go take a look at the github README for the project:
 
@@ -287,7 +287,7 @@ proxy in which case the IP address will be that of the exit node or none
 at all.
 
 Now we know we definitely are dealing with a very promising solution.
-`sdwdate' extracts the time stamp in the http header so we are not
+'`sdwdate`' extracts the time stamp in the http header so we are not
 asking a known NTP server about the time, we are just doing a normal
 http request.
 

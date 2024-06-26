@@ -5,9 +5,10 @@
 For this tutorial we’ll change a C struct into a Lua table. The
 structure we’ll be using won’t be the simplest structure you’ll come
 across in the wild so hopefully the tutorial will do a little more than
-just cover the basics. We’ll add the structures as `userdata` and not as
-`lightuserdata`. Because of that, we won’t have to manage the memory
-ourselves, instead we will let Lua’s GC handle it for us. Disclaimer:
+just cover the basics. We’ll add the structures as `+userdata+` and not
+as `+lightuserdata+`. Because of that, we won’t have to manage the
+memory ourselves, instead we will let Lua’s GC handle it for us.
+Disclaimer:
 
 * This turotial is not supposed to be a full dive into lua tables,
 metatables and their implementation or behavior. The tutorial is meant
@@ -33,8 +34,8 @@ https://github.com/bloodstalker/blogstuff/tree/master/src/cstruct2luatbale[here]
 === C Structs
 
 First let’s take a look at the C structures we’ll be using. The primary
-structure is called `a_t` which has, inside it, two more structures
-`b_t` and `c_t`:
+structure is called `+a_t+` which has, inside it, two more structures
+`+b_t+` and `+c_t+`:
 
 [source,c]
 ----
@@ -67,23 +68,23 @@ The structures are purely artificial.
 
 === First Step: Lua Types
 
-First let’s take a look at `a_t` and decide how we want to do this.
-`a_t` has five members:
+First let’s take a look at `+a_t+` and decide how we want to do this.
+`+a_t+` has five members:
 
-* `a_int` which in Lua we can turn into an `integer`.
-* `a_float` which we can turn into a `number`.
-* `a_string` which will be a Lua `string`.
-* `a_p` which is a pointer to another structure. As previously stated,
-we will turn this into a `userdata`.
-* `a_pp` which is a double pointer. We will turn this into a table of
-`userdata`.
+* `+a_int+` which in Lua we can turn into an `+integer+`.
+* `+a_float+` which we can turn into a `+number+`.
+* `+a_string+` which will be a Lua `+string+`.
+* `+a_p+` which is a pointer to another structure. As previously stated,
+we will turn this into a `+userdata+`.
+* `+a_pp+` which is a double pointer. We will turn this into a table of
+`+userdata+`.
 
 === Second Step: Helper Functions
 
 Now let’s think about what we need to do. First we need to think about
 how we will be using our structures. For this example we will go with a
 pointer, i.e., our library code will get a pointer to the structure so
-we need to turn the table into `userdata`. Next, we want to be able to
+we need to turn the table into `+userdata+`. Next, we want to be able to
 push and pop our new table from the Lua stack. We can also use Lua’s
 type check to make sure our library code complains when someone passes a
 bad type. We will also add functions for pushing the structure arguments
@@ -107,8 +108,8 @@ static a_t* pop_a_t(lua_State* ls, int index) {
 We check to see if the stack index we are getting is actually a userdata
 type and then check the type of the userdata we get to make sure we get
 the right userdata type. We check the type of the userdata by checking
-its metatable. We will get into that later. This amounts to our ``pop''
-functionality for our new type. Now let’s write a ``push'': The function
+its metatable. We will get into that later. This amounts to our "`pop`"
+functionality for our new type. Now let’s write a "`push`": The function
 will look like this:
 
 [source,c]
@@ -127,25 +128,26 @@ a_t* push_a_t(lua_State* ls) {
 }
 ----
 
-Notice that we reserve new memory here using `lua_newuserdata` instead
-of `malloc` or what have you. This way we leave it up to Lua to handle
+Notice that we reserve new memory here using `+lua_newuserdata+` instead
+of `+malloc+` or what have you. This way we leave it up to Lua to handle
 the GC(in the real world however, you might not have the luxury of doing
 so). Now let’s talk about what we are actually doing here: First off we
-reserve memory for our new table using `lua_newuserdata`. Then we get
+reserve memory for our new table using `+lua_newuserdata+`. Then we get
 and set the metatable that we will register later in the tutorial with
 Lua for our newly constructed userdata. Setting the metatable is our way
 of telling Lua what our userdata is, what methods it has along with some
 customizations that we will talk about later. We need to have a method
 of retrieving our full userdata when we need it. We do that by
-registering our userdata inside `LUA_REGISTRYINDEX`. We will need a key.
-for simplicity’s sake we use the pointer that `lua_newuserdata` returned
-as the key for each new full userdata. As for the value of the key, we
-will use the full userdata itself. That’s why we are using
-`lua_pushvalue`. Please note that lua doesn’t have a `push_fulluserdata`
-function and we can’t just pass the pointer to our userdata as the key
-since that would just be a lihgtuserdata and not a userdata so we just
-copy the fulluserdata onto the stack as the value for the key. Lastly we
-just set our key-value pair with `LUA_REGISTRYINDEX`.
+registering our userdata inside `+LUA_REGISTRYINDEX+`. We will need a
+key. for simplicity’s sake we use the pointer that `+lua_newuserdata+`
+returned as the key for each new full userdata. As for the value of the
+key, we will use the full userdata itself. That’s why we are using
+`+lua_pushvalue+`. Please note that lua doesn’t have a
+`+push_fulluserdata+` function and we can’t just pass the pointer to our
+userdata as the key since that would just be a lihgtuserdata and not a
+userdata so we just copy the fulluserdata onto the stack as the value
+for the key. Lastly we just set our key-value pair with
+`+LUA_REGISTRYINDEX+`.
 
 Next we will write a function that pushes the fields of the structure
 onto the stack:
@@ -194,10 +196,10 @@ int new_a_t(lua_State* ls) {
 }
 ----
 
-We just push an `a_t` on top of stack and then populate the fields with
-the values already on top of stack. The fact that we wrote tha two
+We just push an `+a_t+` on top of stack and then populate the fields
+with the values already on top of stack. The fact that we wrote tha two
 separate functions for pushing the arguments and returning a new table
-instance means we can use `new_a_t` as a constructor from lua as well.
+instance means we can use `+new_a_t+` as a constructor from lua as well.
 We’ll later talk about that.
 
 === Third Step: Setters and Getters
@@ -244,8 +246,8 @@ static int getter_a_p(lua_State *ls) {
 }
 ----
 
-For the sake of laziness, let’s assume `a_t->a_int` denotes the number
-of entries in `a_t->a_pp`.
+For the sake of laziness, let’s assume `+a_t->a_int+` denotes the number
+of entries in `+a_t->a_pp+`.
 
 [source,c]
 ----
@@ -272,11 +274,11 @@ static int getter_a_pp(lua_State* ls) {
 }
 ----
 
-Since we register all our tables with `LUA_REGISTRYINDEX` we just
+Since we register all our tables with `+LUA_REGISTRYINDEX+` we just
 retreive the key which in our case, conviniently is the pointer to the
 userdata and retrieve the value(our userdata). As you can see, for
 setters we are assuming that the table itself is being passed as the
-first argument(the `pop_a_t` line assumes that).
+first argument(the `+pop_a_t+` line assumes that).
 
 Our setters methods would be called like this in Lua:
 
@@ -286,12 +288,12 @@ local a = a_t()
 a:set_a_int(my_int)
 ----
 
-The `:` operator in Lua is syntactic sugar. The second line from the
-above snippet is equivalent to `a.set_a_int(self, my_int)`. As you can
+The `+:+` operator in Lua is syntactic sugar. The second line from the
+above snippet is equivalent to `+a.set_a_int(self, my_int)+`. As you can
 see, the table itself will always be our first argument. That’s why our
 assumption above will always be true if the lua code is well-formed.
 
-We do the same steps above for `b_t` and `c_t` getter functions.
+We do the same steps above for `+b_t+` and `+c_t+` getter functions.
 
 Now let’s look at our setters:
 
@@ -361,8 +363,8 @@ static const luaL_Reg a_t_meta[] = {{0, 0}};
 
 We just list the functions we want to be accessible inside Lua code. Lua
 expects the C functions that we register with Lua to have the form
-`(int)(func_ptr*)(lua_State*)`. Also, it’s a good idea to take a look at
-the metatable events that Lua 5.3 supports
+`+(int)(func_ptr*)(lua_State*)+`. Also, it’s a good idea to take a look
+at the metatable events that Lua 5.3 supports
 http://lua-users.org/wiki/MetatableEvents[here]. They provide
 customization options for our new table type(as an example we get the
 same functionality as C++ where we get to define what an operator does
@@ -394,14 +396,15 @@ Please note that we are registering the metatable as a global. It is
 generally not recommended to do so.Why you ask? Adding a new enrty to
 the global table in Lua means you are already reserving that keyword, so
 if another library also needs that key, you are going to have lots of
-fun(the term `fun` here is borrowed from the Dwarf Fortress literature).
-Entries in the global table will require Lua to look things up in the
-global table so it slows things down a bit, though whether the slow-down
-is signifacant enough really depends on you and your requirements.
+fun(the term `+fun+` here is borrowed from the Dwarf Fortress
+literature). Entries in the global table will require Lua to look things
+up in the global table so it slows things down a bit, though whether the
+slow-down is signifacant enough really depends on you and your
+requirements.
 
 We are almost done with our new table but there is one thing remaining
 and that is our table doesn’t have a cozy constructor(Cozy constructors
-are not a thing. Seriously. I just made it up.). We can use our `new`
+are not a thing. Seriously. I just made it up.). We can use our `+new+`
 function as a constructor, we have registered it with our metatable, but
 it requires you to pass all the arguments at the time of construction.
 Sometimes it’s convinient to hold off on passing all or some of the args
@@ -414,17 +417,18 @@ something called metatable events. Eeach event has a string key and the
 value is whatever you put as the value. The values are used whenever
 that event happens. Some the events are:
 
-* `__call`
-* `__pairs`
-* `__sub`
-* `__add`
-* `__gc` The `__sub` event is triggered when your table is the operand
-of a suntraction operator. `__gc` is used when lua want to dispose of
-the table so if you are handling the memory yourself, in contrast to
-letting Lua handle it for you, here’s where you free memory. The events
-are a powerful tool that help us customize how our new table behaves.
+* `+__call+`
+* `+__pairs+`
+* `+__sub+`
+* `+__add+`
+* `+__gc+` The `+__sub+` event is triggered when your table is the
+operand of a suntraction operator. `+__gc+` is used when lua want to
+dispose of the table so if you are handling the memory yourself, in
+contrast to letting Lua handle it for you, here’s where you free memory.
+The events are a powerful tool that help us customize how our new table
+behaves.
 
-For a constructor, we will use the `__call` event. That means when
+For a constructor, we will use the `+__call+` event. That means when
 someone calls our metatable in Lua, like this(call event is triggered
 when our table is called, syntactically speaking):
 
@@ -433,10 +437,10 @@ when our table is called, syntactically speaking):
 local a = a_t()
 ----
 
-`a` will become a new instance of our table. We can add a value for our
-metatable’s `__call` key from either Lua or C. Since we are talking
-about Lua and haven’t almost written anything in Lua, let’s do it in
-Lua:
+`+a+` will become a new instance of our table. We can add a value for
+our metatable’s `+__call+` key from either Lua or C. Since we are
+talking about Lua and haven’t almost written anything in Lua, let’s do
+it in Lua:
 
 [source,lua]
 ----
@@ -449,8 +453,8 @@ setmetatable(a_t, {__call =
 )
 ----
 
-We use our `new` method which we previously registered for our
-metatable. Note that Lua will pass `nil` for the argument if we don’t
+We use our `+new+` method which we previously registered for our
+metatable. Note that Lua will pass `+nil+` for the argument if we don’t
 provide any. That’s how our cozy constructor works.
 
 === Final Words
@@ -470,10 +474,10 @@ with the possibility of me having to do the same for a lot more C
 structs. I just couldn’t bring myself to do it manually for that many C
 structs so I decided to work on a code generator that does that for me.
 The result is https://github.com/bloodstalker/luatablegen[luatablegen].
-`luatablegen` is a simple script that takes the description of your C
+`+luatablegen+` is a simple script that takes the description of your C
 structures in an XML file and generates the C code for your new tables
 and metatables. It does everything we did by hand automatically for us.
-`lautablegen` is in its early stages, so again, any feedback or help
+`+lautablegen+` is in its early stages, so again, any feedback or help
 will be appreciated.
 
 timestamp:1705630055

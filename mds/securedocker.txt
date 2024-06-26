@@ -94,7 +94,7 @@ application directly control the syscalls that it makes. Gofer handles
 filesystem access(not /proc) for the application. The application is a
 regular application. gVisor aims to provide an environment equivalent to
 Linux 4.4. gvisor presently does not implement every system call,
-`/proc` file or `/sys` file. Every sandbox environment gets its own
+`+/proc+` file or `+/sys+` file. Every sandbox environment gets its own
 instance of Sentry. Every container in the sandbox gets its own instance
 of Gofer. gVisor currently does not support all system calls. You can
 find the list of supported system calls for amd64
@@ -227,8 +227,8 @@ int main(int argc, char **argv) {
 }
 ----
 
-Building is straightforward. Just remember to link against `libseccomp`
-with `-lseccomp`.
+Building is straightforward. Just remember to link against
+`+libseccomp+` with `+-lseccomp+`.
 
 [source,bash]
 ----
@@ -265,7 +265,7 @@ bwrap --seccomp 9 9<${TEMP_LOG} bash
 ----
 
 Then we can go and see where the logs end up. On my host, they are
-logged under `/var/log/audit/audit.log` and they look like this:
+logged under `+/var/log/audit/audit.log+` and they look like this:
 
 ....
 type=SECCOMP msg=audit(1716144132.339:4036728): auid=1000 uid=1000 gid=1000 ses=1 subj=unconfined pid=19633 comm="bash" exe="/usr/bin/bash" sig=0 arch=c000003e syscall=13 compat=0 ip=0x7fa58591298f code=0x7ffc0000AUID="devi" UID="devi" GID="devi" ARCH=x86_64 SYSCALL=rt_sigaction
@@ -308,7 +308,7 @@ containers from the host system.
 As an example let’s look at the script provided below. Here we are
 creating a new network namespace. The new interface is provided by
 simply connecting an android phone for USB tethering. Depending on the
-situation you have going on and the `udev` naming rules the interface
+situation you have going on and the `+udev+` naming rules the interface
 name will differ but the concept is the same. We are creating a new
 network namespace for a second internet provider, which in this case, is
 our android phone. We then use this network namespace to execute
@@ -352,9 +352,9 @@ NetworkManager or whatever you have.
 
 === SBOM and Provenance Attestation
 
-What is SBOM? NIST defines SBOM as a ``formal record containing the
+What is SBOM? NIST defines SBOM as a "`formal record containing the
 details and supply chain relationships of various components used in
-building software.''. It contains details about the components used to
+building software.`". It contains details about the components used to
 create a certain piece of software. SBOM is meant to help mitigate the
 threat of supply chain attacks(remember xz?).
 

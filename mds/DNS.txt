@@ -53,12 +53,12 @@ men-in-the-middle are not allowed to snoop on what we are querying.
 server that is getting our DNS queries shall not be able to identify the
 source of the query.
 
-There is more than one way to ``identify'' the source of the query. We
+There is more than one way to "`identify`" the source of the query. We
 only mean the source as in the IP address that made the DNS query.
 
 This second requirement is what ODoH is trying to solve. ODoH tries to
 separate the identity of the source of the DNS query from the query
-itself. ODoH stands for oblivous DoH. It add an ``oblivious'' proxy in
+itself. ODoH stands for oblivous DoH. It add an "`oblivious`" proxy in
 middle of the source of the DNS query and the server. This way the proxy
 can send the queries in bulk for example to try to mask who sent what
 when. I’m summarizing here but what ODoH is trying to do can be
@@ -81,14 +81,14 @@ Below you can see
 https://datatracker.ietf.org/doc/rfc9230/[ripped straight from RFC 9230]
 
 The main problem with this sort of a solution is that there is always an
-element of ``trust-me-bruh'' to the whole situation.
+element of "`trust-me-bruh`" to the whole situation.
 
 * How can we trust that the proxy provider and the server are not
 colluding?
 
 We could run our own oblivious proxy but then if it’s just you and your
 friends using the proxy, then your proxy is not obfuscating much, is it
-now? And then there is the ``oblivious'' aspect of the solution. How can
+now? And then there is the "`oblivious`" aspect of the solution. How can
 we enforce that? How can you verify that?
 
 ....
@@ -106,8 +106,8 @@ monopolize access to DNS queries, I would propose ODoH.
 It has enough mumbo jumbo tech jargon(end-to-end-encrypted, …) to throw
 off your average layman and lul them into a false sense of security and
 privacy but it doesnt prevent the proxy and server provider from
-colluding. After all the technnical jargon, you end up with ``it’s
-safe'' and ``it’s private'' because ``you can trust us''.
+colluding. After all the technnical jargon, you end up with "`it’s
+safe`" and "`it’s private`" because "`you can trust us`".
 
 Now we can see that DoH, DoT and ODoH are all better than baseline DNS
 queries over UDP without encryption but they can’t satisfy both of our
@@ -118,17 +118,17 @@ requirements.
 Now let’s talk about the solution I at the time of writing this blog
 post.
 
-DoH or DoT is good enough to satisfy `Requirement001` but they need
-something a little extra to be able to satisfy `Requirement002`.
+DoH or DoT is good enough to satisfy `+Requirement001+` but they need
+something a little extra to be able to satisfy `+Requirement002+`.
 
 For that, we use an anonymizing network like tor. DoT and DoH both work
 over TCP so we can use any SOCKS5 proxy here that ends up being a Tor
 proxy. What I mean is you can use a the Tor running on your host or you
-can use `ssh -L` to use Tor running on a VPS. That way, your internet
+can use `+ssh -L+` to use Tor running on a VPS. That way, your internet
 proviedr can’t know you’re using Tor at all. With your DNS queries going
-over Tor, we can satisfy `Requirement002`. Tor is not the only solution
-here but I use Tor. There is more than one anonimyzing network out there
-and there are protocols that do this also.
+over Tor, we can satisfy `+Requirement002+`. Tor is not the only
+solution here but I use Tor. There is more than one anonimyzing network
+out there and there are protocols that do this also.
 
 Right now we have an outline in our head:
 
@@ -142,26 +142,26 @@ SOCKS5 and not SOCKS4 but that’s another can of worms)
 There is more than one way to do this but I have decided to use
 https://github.com/DNSCrypt/dnscrypt-proxy[dnscrypt-proxy]. We will not
 be using dnscrypt for the dnscrypt protocol though you could elect to
-use that as the underlying DNS protocol. `dnscrypt-proxy` lets’s us use
-a SOCKS5 proxy through which the DNS queries will be sent. We will use a
-Tor SOCKS5 proxy here. You can choose which protocols should be enabled
-and which ones should be disabled. There are two points:
+use that as the underlying DNS protocol. `+dnscrypt-proxy+` lets’s us
+use a SOCKS5 proxy through which the DNS queries will be sent. We will
+use a Tor SOCKS5 proxy here. You can choose which protocols should be
+enabled and which ones should be disabled. There are two points:
 
 * one, enable the tcp only option, since we dont want to use plain jane
 UDP queries.
-* two, I have asked `dnscrypt-proxy` to only use DNS servers that
+* two, I have asked `+dnscrypt-proxy+` to only use DNS servers that
 support DNSSEC.
 
 I recommend going through all the available options in the
-`dnscrypt-proxy.toml` file. It is one of those config files with
+`+dnscrypt-proxy.toml+` file. It is one of those config files with
 comments so it’s pretty sweet. There are quite a few useful options in
 there that you might care about depending on your needs.
 
 ==== Implementation
 
-Right now I run `dnscrypt-proxy` on a small alpine linux VM. I made it
+Right now I run `+dnscrypt-proxy+` on a small alpine linux VM. I made it
 fancier by running the VM on a tmpfs storage pool. Basically mine is
-running entirely on RAM. I used to have `dnscrypt-proxy` running on a
+running entirely on RAM. I used to have `+dnscrypt-proxy+` running on a
 raspberry pi and had my openwrt router forward DNS queries to that
 raspberry pi. There is obviously no best solution here. Just pick one
 that works for you. Here you can find the vagrantfile I use for the DNS
@@ -227,11 +227,11 @@ end
 ----
 
 It’s pretty straightforward. We use an alpine linux VM as base. Make a
-new interface on the VM with a static IP and have `dnscrypt-proxy`
+new interface on the VM with a static IP and have `+dnscrypt-proxy+`
 receive DNS queries through that interface and IP only. I don’t change
 the port number(53) because of certain applications(you know who you
 are) refusing to accept port for a DNS server’s address. You could also
-make it spicier by using `privoxy`. Maybe I make a post about that
+make it spicier by using `+privoxy+`. Maybe I make a post about that
 later.
 
 timestamp:1708814484

@@ -1,6 +1,6 @@
 == How to get your SMS on IRC
 
-It’s not really a continuation of the ``one client for everything'' post
+It’s not really a continuation of the "`one client for everything`" post
 but it is in the same vein. Basically, in this post we are going to make
 it so that we receive our SMS messages on IRC. More specifically, it
 will send it to a IRC channel. In my case this works and is actually
@@ -103,7 +103,7 @@ https://github.com/terminaldweller/sms-webhook[here].
 
 Here’s a brief explanation of what the code does: We launch the irc bot
 in a goroutine. The web hook server will only respond to POST requests
-on `/sms` after a successful basic http authentication. In our case
+on `+/sms+` after a successful basic http authentication. In our case
 there is no reason not to use a randomized username as well. So
 effectively we will have two secrets this way. You can create a new user
 in the pocketbase admin panel. Pocketbase comes with a default

@@ -28,7 +28,7 @@ the interface you’re getting is not really unified.
 
 ==== The web app way
 
-An example that comes to mind for this sort of solution is `rambox`
+An example that comes to mind for this sort of solution is `+rambox+`
 though they are no longer offering a FOSS solution. I’m just mentioning
 them as an example of what’s being offered out there as a ready-to-use
 solution.
@@ -264,7 +264,7 @@ need a bouncer if you need to have your messages when your client
 disconnects. ergo has that functionality built-in. Here are some other
 perks:
 
-* ergo allow you to define a ``private'' IRC network. You do that by
+* ergo allow you to define a "`private`" IRC network. You do that by
 requiring SASL while connecting, so others can’t connect to your
 instance without having an account
 * it is under active development
