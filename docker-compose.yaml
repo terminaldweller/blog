@@ -24,7 +24,7 @@ services:
       - mongo_user
       - mongo_pass
   mongo:
-    image: mongo:6
+    image: mongo:7
     networks:
       - dbnet
     restart: on-failure
