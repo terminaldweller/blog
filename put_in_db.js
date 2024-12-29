@@ -86,6 +86,14 @@ var blogs = [
     keywords: ["vagrant", "linux", "libvirt", "firefox", "qemu", "ufw"],
     lastUpdatedAt: Date.now(),
   },
+  {
+    title: "Make your zsh prompt go faster",
+    slug: "zsh_go_fast",
+    body: fs.readFileSync(path.join(__dirname) + "/mds/zshgofast.md"),
+    teaser: fs.readFileSync(path.join(__dirname) + "/mds/zshgofast.txt"),
+    keywords: ["zsh", "async"],
+    lastUpdatedAt: Date.now(),
+  },
 ];
 
 db.blogposts.insertMany(blogs);
