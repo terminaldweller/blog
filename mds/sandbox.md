@@ -11,3 +11,4 @@ We will talk about sandboxing under Linux and Openbsd.<br/>
 - lsm(linux security model) and its layers
 - apparmor
 - firewalls
+- landlock
