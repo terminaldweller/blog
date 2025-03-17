@@ -32,6 +32,8 @@ That's how we get [distroless](https://github.com/GoogleContainerTools/distroles
 Distroless base images follow the same pattern as alpine base docker images, as in, less functionality while still keeping enough functionality to be able to do the job and minimize the attack surface.
 Minimizing a base image like this means that the base images are very specialized so we have base images for golang, python, java and the like.<br/>
 
+Finally, we have the scratch base image. The name is a literal one in the sense that it's actually an empty image. This, needless to say, is the safest base image.<br/>
+
 ## Dokcer Runtimes
 
 By default docker uses containerd which in turn uses runc for the runtime. There are two additional runtimes that we want to focus on who try to provide a more secure runtime environment for docker.
@@ -442,7 +444,7 @@ And [here](https://gist.github.com/terminaldweller/033ae07a9e685db85b18eb822dea4
 - [katacontainers](https://katacontainers.io/)
 <p>
   <div class="timestamp">timestamp:1716163133</div>
-  <div class="version">version:1.0.0</div>
+  <div class="version">version:1.1.0</div>
   <div class="rsslink">https://blog.terminaldweller.com/rss/feed</div>
   <div class="originalurl">https://raw.githubusercontent.com/terminaldweller/blog/main/mds/securedocker.md</div>
 </p>

@@ -34,20 +34,8 @@ app.set("views", path.join(__dirname, "views"));
 app.set("view engine", "ejs");
 app.set("view engine", "pug");
 
-app.use(helmet.crossOriginEmbedderPolicy());
-app.use(helmet.crossOriginOpenerPolicy());
-app.use(helmet.crossOriginResourcePolicy());
-app.use(helmet.dnsPrefetchControl());
-app.use(helmet.expectCt());
-app.use(helmet.frameguard());
-app.use(helmet.hidePoweredBy());
-app.use(helmet.hsts());
-app.use(helmet.ieNoOpen());
-app.use(helmet.noSniff());
-app.use(helmet.originAgentCluster());
-app.use(helmet.permittedCrossDomainPolicies());
-app.use(helmet.referrerPolicy());
-app.use(helmet.xssFilter());
+app.use(helmet());
+
 app.use((req, res, next) => {
   res.setHeader(
     "Permissions-Policy",
@@ -55,17 +43,6 @@ app.use((req, res, next) => {
   );
   next();
 });
-app.use(
-  helmet.contentSecurityPolicy({
-    useDefaults: false,
-    directives: {
-      baseUri: ["self"],
-      defaultSrc: ["self"],
-      scriptSrc: ["none"],
-      styleSrc: ["self", "https:", "unsafef-inline"],
-    },
-  }),
-);
 
 app.use(morgan("combined"));
 
@@ -86,8 +63,7 @@ function renderAndSend_v2(req, res, slug) {
         },
       },
     )
-    .exec(function (err, blogPost) {
-      if (err) return err;
+    .then(function (blogPost) {
       return res.render("index.ejs", {
         cache: true,
         data: {
@@ -96,6 +72,10 @@ function renderAndSend_v2(req, res, slug) {
           keywords: blogPost.keywords,
         },
       });
+    })
+    .catch(function (err) {
+      console.log(err);
+      return err;
     });
 }
 
@@ -105,14 +85,17 @@ function renderTagPage(req, res, tag) {
       { keywords: { $in: [tag] } },
       { projection: { _id: 0, title: 0, teaser: 0, body: 0, keywords: 0 } },
     )
-    .exec(function (err, blogPosts) {
-      if (err) return err;
+    .then(function (blogPosts) {
       return res.render("tags.ejs", {
         cache: true,
         data: {
           blogPosts: blogPosts,
         },
       });
+    })
+    .catch(function (err) {
+      console.log(err);
+      return err;
     });
 }
 
@@ -131,14 +114,17 @@ app.get("/archive", (req, res) => {
   res.type("text/html");
   model.blogPost
     .find({}, { _id: 0, body: 0, teaser: 0, keywords: 0, lastUpdatedAt: 0 })
-    .exec(function (err, blogPosts) {
-      if (err) return err;
+    .then(function (blogPosts) {
       res.render("archive.ejs", {
         cache: true,
         data: {
           blogPosts: blogPosts,
         },
       });
+    })
+    .catch(function (err) {
+      console.log(err);
+      return err;
     });
 });
 
@@ -157,9 +143,12 @@ app.get("/rss/feed", (req, res) => {
     .find({})
     .sort("-lastUpdatedAt")
     .select("title slug lastUpdatedAt teaser")
-    .exec(function (err, posts) {
-      if (err) return err;
+    .then(function (posts) {
       return res.render("rss_feed_v2.pug", { cache: true, posts: posts });
+    })
+    .catch(function (err) {
+      console.log(err);
+      return err;
     });
 });
 
@@ -182,8 +171,7 @@ app.get("/$", (req, res) => {
     .find({}, { projection: { _id: 0, title: 0, teaser: 0 } })
     .limit(1)
     .sort({ $natural: -1 })
-    .exec(function (err, blogPost) {
-      if (err) return err;
+    .then(function (blogPost) {
       return res.render("index.ejs", {
         cache: true,
         data: {
@@ -192,6 +180,10 @@ app.get("/$", (req, res) => {
           keywords: blogPost[0].keywords,
         },
       });
+    })
+    .catch(function (err) {
+      console.log(err);
+      return err;
     });
 });
 
