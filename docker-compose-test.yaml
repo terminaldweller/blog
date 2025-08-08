@@ -1,29 +1,67 @@
 version: "3.9"
 services:
+  nginx-crs:
+    image: owasp/modsecurity-crs:4.16.0-nginx-alpine-202506301206
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+    ports:
+      - 19010:8443
+    restart: unless-stopped
+    networks:
+      - blognet
+    environment:
+      - BACKEND="http://blog:9000"
+      - PROXY_SSL_CERT=/etc/letsencrypt/live/blog.terminaldweller.com/fullchain.pem
+      - PROXY_SSL_CER_KEY=/etc/letsencrypt/live/blog.terminaldweller.com/privkey.pem
+      - SSL_PORT=8443
+    volumes:
+      - ./certs/server.cert:/etc/letsencrypt/live/blog.terminaldweller.com/fullchain.pem:ro
+      - ./certs/server.key:/etc/letsencrypt/live/blog.terminaldweller.com/privkey.pem:ro
   blog:
     image: blog
     build:
       context: .
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+    restart: unless-stopped
     networks:
       - blognet
       - dbnet
     ports:
-      - "19009:9000"
+      - "127.0.0.1:19009:9000"
     cap_drop:
       - ALL
-    environment:
-      - SERVER_DEPLOYMENT_TYPE=test
-      - SERVER_LISTEN_PORT=9000
     depends_on:
+      - nginx-crs
       - mongo
     secrets:
       - mongo_user
       - mongo_pass
   mongo:
     image: mongo:7
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
     networks:
       - dbnet
-    restart: on-failure
+    restart: unless-stopped
     ports:
       - "127.0.0.1:27117:27017"
       - "127.0.0.1:27118:27018"

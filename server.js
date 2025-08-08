@@ -19,7 +19,6 @@ const mit = require("markdown-it")({ html: true })
     auto: true,
     code: true,
   });
-const spdy = require("spdy");
 const helmet = require("helmet");
 const morgan = require("morgan");
 const model = require("./model");
@@ -197,30 +196,4 @@ app.use((err, req, res) => {
   return res.status(500).send({ error: err });
 });
 
-if (process.env.SERVER_DEPLOYMENT_TYPE == "deployment") {
-  spdy
-    .createServer(
-      {
-        key: fs.readFileSync(
-          "/etc/letsencrypt/live/blog.terminaldweller.com/privkey.pem",
-          "utf-8",
-        ),
-        cert: fs.readFileSync(
-          "/etc/letsencrypt/live/blog.terminaldweller.com/fullchain.pem",
-          "utf-8",
-        ),
-      },
-      app,
-    )
-    .listen(process.env.SERVER_LISTEN_PORT || 9000);
-} else if (process.env.SERVER_DEPLOYMENT_TYPE == "test") {
-  spdy
-    .createServer(
-      {
-        key: fs.readFileSync("/certs/server.key", "utf-8"),
-        cert: fs.readFileSync("/certs/server.cert", "utf-8"),
-      },
-      app,
-    )
-    .listen(process.env.SERVER_LISTEN_PORT || 9000);
-}
+app.listen(9000, () => console.log("Server is running on port 9000"));
