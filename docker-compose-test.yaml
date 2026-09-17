@@ -1,7 +1,6 @@
-version: "3.9"
 services:
   nginx-crs:
-    image: owasp/modsecurity-crs:4.16.0-nginx-alpine-202506301206
+    image: owasp/modsecurity-crs:4.25-nginx-alpine-lts
     deploy:
       resources:
         limits:
@@ -9,12 +8,14 @@ services:
     logging:
       driver: "json-file"
       options:
-        max-size: "100m"
+        max-size: "50m"
+        max-file: "3"
     ports:
       - 19010:8443
     restart: unless-stopped
     networks:
-      - blognet
+      blognet: 172.17.55.10
+        ipv4_address: 
     environment:
       - BACKEND="http://blog:9000"
       - PROXY_SSL_CERT=/etc/letsencrypt/live/blog.terminaldweller.com/fullchain.pem
@@ -23,6 +24,17 @@ services:
     volumes:
       - ./certs/server.cert:/etc/letsencrypt/live/blog.terminaldweller.com/fullchain.pem:ro
       - ./certs/server.key:/etc/letsencrypt/live/blog.terminaldweller.com/privkey.pem:ro
+    security_opt:
+      - no-new-privileges
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - SETGID
+      - SETUID
+      - NET_BIND_SERVICE
+    runtime: runsc
   blog:
     image: blog
     build:
@@ -34,11 +46,14 @@ services:
     logging:
       driver: "json-file"
       options:
-        max-size: "100m"
+        max-size: "50m"
+        max-file: "3"
     restart: unless-stopped
     networks:
-      - blognet
-      - dbnet
+      blognet:
+        ipv4_address: 172.17.55.11
+      dbnet:
+        ipv4_address: 172.17.56.11
     ports:
       - "127.0.0.1:19009:9000"
     cap_drop:
@@ -49,6 +64,12 @@ services:
     secrets:
       - mongo_user
       - mongo_pass
+    security_opt:
+      - no-new-privileges
+    cap_drop:
+      - ALL
+    read_only: true
+    runtime: runsc
   mongo:
     image: mongo:7
     deploy:
@@ -58,9 +79,11 @@ services:
     logging:
       driver: "json-file"
       options:
-        max-size: "100m"
+        max-size: "50m"
+        max-file: "3"
     networks:
-      - dbnet
+      dbnet:
+        ipv4_address: 172.17.56.10
     restart: unless-stopped
     ports:
       - "127.0.0.1:27117:27017"
@@ -74,9 +97,22 @@ services:
     secrets:
       - mongo_user
       - mongo_pass
+    security_opt:
+      - no-new-privileges
+    runtime: runsc
 networks:
   blognet:
+    enable_ipv6: true
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.17.55.0/24
   dbnet:
+    enable_ipv6: false
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.17.56.0/24
 # volumes:
 #   blog-data:
 secrets:

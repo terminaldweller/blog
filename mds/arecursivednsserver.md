@@ -1,0 +1,534 @@
+# A recursive DNS server
+
+For this one we are going to make a recursive DNS server.
+Our goals:
+- privacy: we want our DNS requests to only be known to the actual servers answering the DNS queries and nobody else in between
+- anonymity: we dont want the DNS server answering our queries to know that we are who we are
+- security: well we are hosting this on the internet so ...
+- DoH, DoT and DoQ
+- observability: because privacy and anonymity works if you are self-hosting, its for you, not for everybody else
+- filtering: so want to have the ability to filter based on readily available lists
+
+TL;DR
+this is going to be a bit long. You can find the repo that everything in it [here](https://github.com/terminaldweller/recursive_resolver).
+
+**NOTES**
+1. As you will see later, you don't want to use this if you play video games online, maybe. You'll see why. Caching might help, maybe.
+2. This is not a light service and probably a bit over-engineered. I ended up having a bit too much fun with it.
+3. This has been my DNS resolver for a while now.
+
+I primarily made this to have it on the internet. There is nothing that says you can't have this on your local network but to be honest, for that, this is going to be way too overkill.
+
+## The Design, I Guess
+
+Let's first address anonymity and privacy. We want the incoming traffic to our server to be encrypted coming in and going out(it's a recursive resolver). For incoming traffic we can choose between DoH, DoT and DoQ. There is not reason for us not to choose all three so we choose all three. DoH is nice. DoT is supported by systemd-resolved so you don't need anything else if you're running a systemd distro. We'll keep DoQ for future-proofing or something.
+We could benchmark DoQ vs DoT/DoH speeds and check whether there is a meaningful difference but since our upstream is going to go over tor, the significant chunk of the RTT will be tor so we'll leave that be for now.
+For the other end, so outgoing connections, we can do the same. We only send queries to servers which support some sort of encrypted DNS. That requires us to use a forwarder that allows us to do that.
+Like this, we can be sure at no point in the travel of the query, the query is visible to anyone other than the responding server.
+As for our outgoing transport, we will be sending all queries over tor. This will mean that our queries will be much slower(way slower, seriously!) but we gain anonymity. Needless to say, since we are forwarding all queries over tor, we will be forcing TCP-only queries so no UDP for us.
+We will also need some rate-limiting mechanism and security measures since this is going to be a server on the internet using components that are not exactly bind or knot levels of battle-tested.
+We will use docker as the runtime. Any OCI-compatible runtime will do, of course.
+
+For our DoH endpoint, we will be using a web application firewall to filter malicious http queries. If you've ever hosted some http service on the internets and have bothered to actually look at the logs, you now what i mean.
+For DoT and DoQ we will use powerDNS's [dnsdist](https://github.com/PowerDNS/pdns). We could have the [modsecurity crs nginx](https://github.com/coreruleset/modsecurity-crs-docker) instance(our web application firewall, waf) handle DoT but for DoQ we will not be able to do that since DoQ will be using UDP(its quic, remember?) and we will need something that understands the DoQ ALPN. Nginx cant do that so we use dnsdist. We will see in a bit that using dnsdist has some benefits as well.
+
+We will use [dnscrypt-proxy](https://github.com/DNSCrypt/dnscrypt-proxy) as our forwarder through tor. It can fulfill all our requirements: TCP-only queries, only encrypted upstreams, sends traffic through a socks5 proxy which makes sending over tor a cinch.
+
+Tor is tor. It's slow, circuits go down etc. so we will be running 3 tor containers behind a reverse proxy doing round robin to attempt to somewhat mitigate the fickleness of the tor network. You can also choose to use obfuscation for tor if that makes sense for you. VPN upstream transports are also possible. We will not explore them here but in some later posts in the future, we might get there.
+I2P doesn't have US gov backing so it has almost no exit nodes so we can't really pass through there.
+
+That's pretty much it for the design part.
+The rest of the post will just be us talking about implementation details.
+
+We will also use [supercronic](https://github.com/aptible/supercronic) to update our filter lists that [CoreDNS](https://github.com/coredns/coredns) consumes.
+
+At the end, we will talk a little about what the local network side of things can look like or at least what mine looks like if you choose to host this on the internet.
+
+## Diagram
+
+That's the path our queries take through the system:
+
+```txt
+-----      -----      ---------      ----------------      ---------      -----
+|DoH| ---> |WAF| ---> |CoreDNS| ---> |DNSCrypt-Proxy| ---> |HaProxy| ---> |Tor|
+-----      -----      ---------      ----------------      ---------      -----
+
+-----      ---------      ---------      ----------------      ---------      -----
+|DoT| ---> |dnsdist| ---> |CoreDNS| ---> |DNSCrypt-Proxy| ---> |HaProxy| ---> |Tor|
+-----      ---------      ---------      ----------------      ---------      -----
+
+-----      ---------      ---------      ----------------      ---------      -----
+|DoQ| ---> |dnsdist| ---> |CoreDNS| ---> |DNSCrypt-Proxy| ---> |HaProxy| ---> |Tor|
+-----      ---------      ---------      ----------------      ---------      -----
+```
+The intakes are our waf and dnsdist. The default port for DoH is 443(duh!!!) and 853 for DoT and DoQ. We will serve over those but feel free to change them on your end.
+
+## Intake
+
+The waf config is pretty straightforward. Its a normal reverse-proxy setting for nginx, with the added addition of us having to exempt our DoH URI since a valid DoH requests looks all kinds of bad to a waf.
+
+```nginx
+server {
+  listen 443 ssl;
+  http2 on;
+  if ($server_protocol !~* "HTTP/2") {
+    return 444;
+  }
+
+  keepalive_timeout 60;
+  charset utf-8;
+
+  ssl_certificate /certs/fullchain.pem;
+  ssl_certificate_key /certs/privkey.pem;
+  ssl_protocols TLSv1.3;
+  ssl_session_cache shared:SSL:50m;
+  ssl_session_timeout 1d;
+  ssl_session_tickets on;
+
+  tcp_nopush on;
+
+  add_header X-Content-Type-Options "nosniff" always;
+  add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+  add_header X-Frame-Options SAMEORIGIN always;
+  add_header X-XSS-Protection "1; mode=block" always;
+  add_header Referrer-Policy "no-referrer";
+
+  fastcgi_hide_header X-Powered-By;
+
+  error_page 500 502 503 504 /50x.html;
+  location = /50x.html {
+      root   /usr/share/nginx/html;
+  }
+
+  error_page 401 403 404 /404.html;
+  location /dns-query {
+  modsecurity_rules '
+    SecRuleEngine On
+    SecRule REQUEST_URI "@streq /dns-query" "id:100001,phase:1,pass,nolog,ctl:ruleRemoveById=920420"
+  ';
+    proxy_pass http://172.31.33.20:8053;
+  }
+}
+```
+
+We already talked about the exemption rule we need to have for DoH on `/dns-query` otherwise our waf will kill all the valid DoH requests.
+```nginx
+modsecurity_rules '
+  SecRuleEngine On
+  SecRule REQUEST_URI "@streq /dns-query" "id:100001,phase:1,pass,nolog,ctl:ruleRemoveById=920420"
+';
+```
+
+I also added a strict http/2 enforcement snippet at the top:
+```nginx
+if ($server_protocol !~* "HTTP/2") {
+  return 444;
+}
+```
+
+[Http/1.1 has fundamental design flaws](https://www.youtube.com/watch?v=PUCyExOr3sE). There is no real reason or benefit for us to use it so we will be using http/2 for our incoming DoH requests.
+
+```yaml
+  waf:
+    image: waf
+    build:
+      dockerfile: ./Dockerfile_waf
+      context: .
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
+    ports:
+      - "443:443/tcp"
+    networks:
+      dns:
+        ipv4_address: 172.31.33.10
+    restart: unless-stopped
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/waf.conf:ro
+    depends_on:
+      - coredns
+    environment:
+      - MODSECURITY_RULE_ENGINE=On
+      - BLOCKING_PARANOIA=1
+      - DETECTION_PARANOIA=1
+      - ALLOWED_REQUEST_CONTENT_TYPE_CHARSET=|utf-8|
+      - VALIDATE_UTF8_ENCODING=1
+      - ALLOWED_METHODS=GET POST
+      - ALLOWED_HTTP_VERSIONS=HTTP/2.0
+    runtime: runsc
+    security_opt:
+      - no-new-privileges
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - SETUID
+      - SETGID
+      - NET_BIND_SERVICE
+```
+
+We will be using gvisor's `runsc` as our OCI runtime. We will do that for all containers.
+Just a few things to keep in mind when we are using `runsc`:
+1. `runsc` will block access to the docker resolver so we won't be able to use the container names as hostnames.
+2. because `runsc` blocks access to the docker resolver, we won't have any DNS in the containers either
+
+For number 2, the supercronic container will be downloading and updating our block lists so it's going to need a DNS resolver along with the tor nodes. The rest of the containers dont need a DNS resolver.
+For inter-container connectivity, we will set static adresses and use those to reference a container.
+
+
+For our other ingestion point, dnsdist, we have:
+
+```lua
+-- vim: ft=lua
+setLocal("127.0.0.1:5300")
+
+setACL({"0.0.0.0/0", "::/0"})
+
+local certificate = "/certs/fullchain.pem"
+local privateKey = "/certs/privkey.pem"
+
+addTLSLocal("0.0.0.0:8853", certificate, privateKey, {
+    provider = "openssl",
+    minTLSVersion = "tls1.3",
+    maxConcurrentTCPConnections = 1000
+})
+
+addDOQLocal("0.0.0.0:8853", certificate, privateKey,
+            {idleTimeout = 30, congestionControlAlgo = "cubic"})
+
+newServer({
+    address = "172.31.33.20:8054",
+    name = "coredns",
+    tcpOnly = true,
+    checkTCP = true,
+    checkInterval = 10
+})
+
+setRingBuffersSize(100000, 10)
+
+local abuse = dynBlockRulesGroup()
+
+abuse:setQueryRate(100, 10, "Exceeded query rate", 60, DNSAction.Drop, 50)
+
+abuse:setQTypeRate(DNSQType.ANY, 5, 10, "Exceeded ANY query rate", 60,
+                   DNSAction.Drop)
+
+function maintenance() abuse:apply() end
+```
+
+```yaml
+  dnsdist:
+    image: powerdns/dnsdist-21:2.1.2
+    deploy:
+      resources:
+        limits:
+          memory: 384M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
+    volumes:
+      - ./dnsdist.conf:/etc/dnsdist/conf.d/10-encrypted-dns.conf:ro
+      - ./privkey1.pem:/certs/privkey.pem:ro
+      - ./fullchain1.pem:/certs/fullchain.pem:ro
+    ports:
+      - "853:8853/tcp"
+      - "853:8853/udp"
+    networks:
+      dns:
+        ipv4_address: 172.31.33.9
+    restart: unless-stopped
+    read_only: true
+    security_opt:
+      - no-new-privileges
+    cap_drop:
+      - ALL
+    runtime: runsc
+```
+
+Our waf and dnsdist images both run as non-root so make sure they can both read your x.509 private key.
+
+
+## Forwarder Chain
+
+```conf
+https://.:8053 dns://.:8054 {
+  errors
+  log
+  bufsize 4096
+  loadbalance
+
+  hosts /etc/coredns/hosts/hosts {
+    fallthrough
+  }
+
+  forward . 172.31.33.15:53 {
+    max_concurrent 1000
+  }
+
+  cache 3600 {
+    success 10000
+    denial 10000
+    prefetch 20 10m 10%
+    serve_stale 1h
+    servfail 5s
+  }
+
+  loop
+}
+```
+
+```yaml
+  coredns:
+    image: coredns
+    build:
+      dockerfile: ./Dockerfile_coredns
+      context: .
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "3"
+    networks:
+      dns:
+        ipv4_address: 172.31.33.20
+    volumes:
+      - ./Corefile:/etc/coredns/Corefile:ro
+      - ./hosts/:/etc/coredns/hosts/:ro
+    depends_on:
+      - dnscryptproxy
+      - supercronic
+    command: ["-conf", "/etc/coredns/Corefile"]
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges
+    runtime: runsc
+    read_only: true
+    cap_drop:
+      - ALL
+```
+
+Coredns is our main forwarder. This is where we cache the queries as well as where we enforce the block lists(e.g. the hosts file that we are bind mounting).
+The two listeners are for DoH and Dot/DoQ respectively.
+Here we can talk about another reason why i chose coredns. In order to let our waf actually do its job, we are terminating tls for DoH on the waf to have be able to inspect everything but that leaves us with the trouble of having to find a DNS server implementation that does DoH without TLS. As I'm sure you can guess, coredns to the rescue.
+
+After Coredns, we have to hand off the requests to dnscrypt-proxy.
+
+Below is the options that we need. The rest of the options are really up to you. Also, we turn caching off here since we really dont need dnscrypt-proxy to cache because coredns is already caching the queries for us. We don't want to have to deal with double-caching weirdness.
+
+```toml
+cache = false
+dnscrypt_servers = true
+doh_servers = true
+odoh_server = true
+require_dnssec = true
+require_nolog = true
+require_nofilter = true
+proxy = 'socks5://172.31.66.66:9050'
+force_tcp = true
+listen_addresses = ['0.0.0.0:53']
+```
+
+Also, using ODoH here does not mean i have changed my stance on ODoH being a joke. It's simply that in this capacity ODoH servers work just like DoH servers without the extra trust-me-bruhs. They are encrypted upstreams so they work.
+
+```yaml
+  dnscryptproxy:
+    image: dnscrypt-proxy
+    build:
+      dockerfile: ./Dockerfile_dnscrypt-proxy
+      context: .
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "3"
+    networks:
+      dns:
+        ipv4_address: 172.31.33.15
+      tor:
+        ipv4_address: 172.31.66.15
+    volumes:
+      - ./dnscrypt-proxy-config.toml:/etc/dnscrypt-proxy/dnscrypt-proxy.toml:ro
+      - ./resolv.conf:/etc/resolv.conf:ro
+    depends_on:
+      - haproxy
+    command: ["--config", "/etc/dnscrypt-proxy/dnscrypt-proxy.toml"]
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges
+    runtime: runsc
+    cap_drop:
+      - ALL
+```
+
+## Upstream Transport
+
+First up is our reverse-proxy, haproxy:
+
+```haproxy
+global
+    maxconn 4096
+
+defaults
+    log global
+    mode tcp
+    option tcplog
+    option dontlognull
+    timeout connect 5000
+    timeout client 10000
+    timeout server 10000
+
+listen socks5_rr_docker
+    bind :9050
+    mode tcp
+    balance roundrobin
+    server server0 172.31.66.10:9050
+    server server1 172.31.66.11:9050
+    server server2 172.31.66.12:9050
+```
+
+```yaml
+  haproxy:
+    image: haproxy:lts-alpine3.24
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "3"
+    volumes:
+      - ./haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges
+    read_only: true
+    runtime: runsc
+    cap_drop:
+      - ALL
+    networks:
+      tor:
+        ipv4_address: 172.31.66.66
+    depends_on:
+      - tor1
+      - tor2
+      - tor3
+```
+
+And our Tor instances:
+
+```yaml
+  tor1:
+    image: tor
+    build:
+      dockerfile: ./Dockerfile_tor
+      context: .
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "3"
+    networks:
+      tor:
+        ipv4_address: 172.31.66.10
+    volumes:
+      - ./torrc:/etc/tor/torrc:ro
+      - ./resolv.conf:/etc/resolv.conf:ro
+    command: ["-f", "/etc/tor/torrc"]
+    security_opt:
+      - no-new-privileges
+    restart: unless-stopped
+    runtime: runsc
+    cap_drop:
+      - ALL
+```
+
+We don't have any special requirements for tor. Just make sure that the tor port is being served on `0.0.0.0` and not localhost. Besides that feel free to use bridges.
+The `resolv.conf` file is a static one, containing a DNS server of your choosing. I'm using cloudflare's `1.1.1.1` because the chances of them blocking tor is lower, for very obvious reasons, might i add.
+
+## Block Lists
+
+And the final piece. Our supercronic service just downloads a block list. You can choose whichever one you want. There are a ton of block lists all over the internet.
+
+```yaml
+  supercronic:
+    image: supercronic
+    build:
+      dockerfile: ./Dockerfile_supercronic
+      context: .
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "3"
+    networks:
+      - nil
+    read_only: true
+    security_opt:
+      - no-new-privileges
+    volumes:
+      - ./crontab:/etc/crontab:ro
+      - ./hosts:/hosts/:rw
+      - ./resolv.conf:/etc/resolv.conf:ro
+    restart: unless-stopped
+    command: ["/etc/crontab"]
+    runtime: runsc
+    cap_drop:
+      - ALL
+```
+
+```sh
+#!/bin/sh
+
+args="$@"
+
+curl --retry 10 \
+  --connect-timeout 30 \
+  "https://raw.githubusercontent.com/StevenBlack/hosts/master/alternates/fakenews-gambling/hosts" \
+  -o /hosts/hosts.tmp \
+  && mv /hosts/hosts.tmp /hosts/hosts \
+  && /usr/local/bin/supercronic "$args"
+```
+
+The startup script downloads our block list(s) and then the crontab file determines how often it should update. You can have more than one list of course.
+For starters you can look [here](https://github.com/StevenBlack/hosts) and [here](https://github.com/firehol/blocklist-ipsets) and [here](https://github.com/hagezi/dns-blocklists).
+
+Again, you can find the entire thing [here](https://github.com/terminaldweller/recursive_resolver)
+
+## Resource Usage
+I've been running my instance on a VPS with 2GB of RAM and 2 CPU cores. You could probably get away with lower resources but you might be cutting it too close. I recommend the same loadout that I have.
+Ideally pick something with both IPv4 and IPv6 connectivity.
+
+<p>
+  <div class="timestamp">timestamp:1789526651</div>
+  <div class="version">version:1.0.0</div>
+  <div class="rsslink">https://blog.terminaldweller.com/rss/feed</div>
+  <div class="originalurl">https://raw.githubusercontent.com/terminaldweller/blog/main/mds/arecursivednsserver.md</div>
+</p>
+<br>

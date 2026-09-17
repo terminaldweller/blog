@@ -23,6 +23,9 @@ services:
     secrets:
       - mongo_user
       - mongo_pass
+    security_opt:
+      - no-new-privileges
+    read_only: true
   mongo:
     image: mongo:7
     networks:
@@ -40,6 +43,8 @@ services:
     secrets:
       - mongo_user
       - mongo_pass
+    security_opt:
+      - no-new-privileges
 networks:
   blognet:
   dbnet:

@@ -75,6 +75,10 @@ Minimizing a base image like this means that the base images are very
 specialized so we have base images for golang, python, java and the
 like.
 
+Finally, we have the scratch base image. The name is a literal one in
+the sense that it’s actually an empty image. This, needless to say, is
+the safest base image.
+
 === Dokcer Runtimes
 
 By default docker uses containerd which in turn uses runc for the
@@ -603,7 +607,7 @@ cgroups]
 +
 timestamp:1716163133
 +
-version:1.0.0
+version:1.1.0
 +
 https://blog.terminaldweller.com/rss/feed
 +
