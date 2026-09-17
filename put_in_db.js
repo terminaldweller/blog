@@ -94,6 +94,14 @@ var blogs = [
     keywords: ["zsh", "async"],
     lastUpdatedAt: Date.now(),
   },
+  {
+    title: "A recursive DNS server",
+    slug: "a_recursive_dns_server",
+    body: fs.readFileSync(path.join(__dirname) + "/mds/arecursivednsserver.md"),
+    teaser: fs.readFileSync(path.join(__dirname) + "/mds/arecursivednsserver.txt"),
+    keywords: ["dns"],
+    lastUpdatedAt: Date.now(),
+  }
 ];
 
 db.blogposts.insertMany(blogs);
