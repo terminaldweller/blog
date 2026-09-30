@@ -2,24 +2,23 @@
 
 For this one we are going to make a recursive DNS server.
 Our goals:
-- privacy: we want our DNS requests to only be known to the actual servers answering the DNS queries and nobody else in between
-- anonymity: we dont want the DNS server answering our queries to know that we are who we are
-- security: well we are hosting this on the internet so ...
+- privacy: we want our DNS requests to only be known to the actual servers answering the DNS queries and nobody else in between (does not apply to privacy from the operator of this service)
+- anonymity: we dont want the DNS server answering our queries to know that we are who we are (does not apply to privacy from the operator of this service)
+- security: well we are hosting this on the internet presumably so ...
 - DoH, DoT and DoQ
-- observability: because privacy and anonymity works if you are self-hosting, its for you, not for everybody else
-- filtering: so want to have the ability to filter based on readily available lists
+- observability: we want to have an easy way to have the logs available and/or sent elsewhere
+- filtering: we want to have the ability to filter based on readily available lists
 
 TL;DR
-this is going to be a bit long. You can find the repo that everything in it [here](https://github.com/terminaldweller/recursive_resolver).
+this is going to be a bit long. You can find the repo that holds everything [here](https://github.com/terminaldweller/recursive_resolver).
 
 **NOTES**
-1. As you will see later, you don't want to use this if you play video games online, maybe. You'll see why. Caching might help, maybe.
-2. This is not a light service and probably a bit over-engineered. I ended up having a bit too much fun with it.
+1. As you will see later, you don't want to use this if you play video games online, maybe. You'll see why. Caching helps but compared to your ISPs DNS, this won't do. Trade-offs.
+2. This is not a light service and probably a bit over-engineered. I ended up having a bit too much fun with it. It could be trimmed down.
 3. This has been my DNS resolver for a while now.
+4. I run 3 instances on VPSes since i use these on devices that go outside with me as well, but if you don't need that(why?), you could host them on your internal network.
 
-I primarily made this to have it on the internet. There is nothing that says you can't have this on your local network but to be honest, for that, this is going to be way too overkill.
-
-## The Design, I Guess
+## The Design
 
 Let's first address anonymity and privacy. We want the incoming traffic to our server to be encrypted coming in and going out(it's a recursive resolver). For incoming traffic we can choose between DoH, DoT and DoQ. There is not reason for us not to choose all three so we choose all three. DoH is nice. DoT is supported by systemd-resolved so you don't need anything else if you're running a systemd distro. We'll keep DoQ for future-proofing or something.
 We could benchmark DoQ vs DoT/DoH speeds and check whether there is a meaningful difference but since our upstream is going to go over tor, the significant chunk of the RTT will be tor so we'll leave that be for now.
@@ -41,6 +40,10 @@ That's pretty much it for the design part.
 The rest of the post will just be us talking about implementation details.
 
 We will also use [supercronic](https://github.com/aptible/supercronic) to update our filter lists that [CoreDNS](https://github.com/coredns/coredns) consumes.
+
+Let's talk about the networks a bit as well. Among our containers, the CoreDNS and DNSCrypt-proxy networks will have docker networks marked internal,e.g. `internal: true`, because first, in case of CoreDNS it does not need to talk to anything outside this compose file and for DNSCrypt-proxy, it will only communicate through tor. This way, it's safer. They won't leak because they can't, not because i think i set them up correctly. This is a safer design.
+
+All the endpoints are at standard locations, i.e. `:443` and `/dns-qeury` for DoH, and `:853` for DoT and DoQ.
 
 At the end, we will talk a little about what the local network side of things can look like or at least what mine looks like if you choose to host this on the internet.
 
@@ -146,6 +149,7 @@ if ($server_protocol !~* "HTTP/2") {
     ports:
       - "443:443/tcp"
     networks:
+      frontend:
       dns:
         ipv4_address: 172.31.33.10
     restart: unless-stopped
@@ -243,6 +247,7 @@ function maintenance() abuse:apply() end
       - "853:8853/tcp"
       - "853:8853/udp"
     networks:
+      frontend:
       dns:
         ipv4_address: 172.31.33.9
     restart: unless-stopped
@@ -327,6 +332,8 @@ Here we can talk about another reason why i chose coredns. In order to let our w
 After Coredns, we have to hand off the requests to dnscrypt-proxy.
 
 Below is the options that we need. The rest of the options are really up to you. Also, we turn caching off here since we really dont need dnscrypt-proxy to cache because coredns is already caching the queries for us. We don't want to have to deal with double-caching weirdness.
+For bootstrap resolvers, we will use tor's DNSPort so those will also pass through tor. Both networks that dnscrypt has, `dns` and `tor` will be marked internal, so this container cannot contact the outside world, i.e. we will not be leaking anything from dnscryptproxy.
+Finally, we will disable caching on dnscryptproxy since we want to handle caching on CoreDNS and want to avoid double-caching.
 
 ```toml
 cache = false
@@ -339,6 +346,8 @@ require_nofilter = true
 proxy = 'socks5://172.31.66.66:9050'
 force_tcp = true
 listen_addresses = ['0.0.0.0:53']
+bootstrap_resolvers = ['172.31.66.10:9053', '172.31.66.11:9053', '172.31.66.12:9053']
+cache = false
 ```
 
 Also, using ODoH here does not mean i have changed my stance on ODoH being a joke. It's simply that in this capacity ODoH servers work just like DoH servers without the extra trust-me-bruhs. They are encrypted upstreams so they work.
@@ -453,6 +462,7 @@ And our Tor instances:
     networks:
       tor:
         ipv4_address: 172.31.66.10
+      toregress:
     volumes:
       - ./torrc:/etc/tor/torrc:ro
       - ./resolv.conf:/etc/resolv.conf:ro
@@ -465,12 +475,13 @@ And our Tor instances:
       - ALL
 ```
 
-We don't have any special requirements for tor. Just make sure that the tor port is being served on `0.0.0.0` and not localhost. Besides that feel free to use bridges.
+We don't have any special requirements for tor besides the DNSPort that dnscryptproxy will use for its bootstrap resolver addresses. Just make sure that the ports is being served on `0.0.0.0` and not localhost. Besides that, i guess use bridges. maybe.
 The `resolv.conf` file is a static one, containing a DNS server of your choosing. I'm using cloudflare's `1.1.1.1` because the chances of them blocking tor is lower, for very obvious reasons, might i add.
 
 ## Block Lists
 
 And the final piece. Our supercronic service just downloads a block list. You can choose whichever one you want. There are a ton of block lists all over the internet.
+Feel free to add more lists or just a different list.
 
 ```yaml
   supercronic:
@@ -516,18 +527,28 @@ curl --retry 10 \
   && /usr/local/bin/supercronic "$args"
 ```
 
-The startup script downloads our block list(s) and then the crontab file determines how often it should update. You can have more than one list of course.
-For starters you can look [here](https://github.com/StevenBlack/hosts) and [here](https://github.com/firehol/blocklist-ipsets) and [here](https://github.com/hagezi/dns-blocklists).
+The startup script downloads our block list(s) and then the crontab file determines how often it should update. The only thing to note here is that we first download the list to a temp directory and only after making sure tht the list download went smoothly, replace it with the new list.
+You can look [here](https://github.com/StevenBlack/hosts) and [here](https://github.com/firehol/blocklist-ipsets) and [here](https://github.com/hagezi/dns-blocklists) for more lists to choose from.
 
-Again, you can find the entire thing [here](https://github.com/terminaldweller/recursive_resolver)
+Finally, you can find the entire recursive resolver [here](https://github.com/terminaldweller/recursive_resolver).
+
+## A note on observability
+
+We mentioned it once and then never afterwards. We are running a compose file. It is trivial to have logging enabled. Since I view this as a public service, i leave the logging mechanism to the readers.
+But since we designed with observability in mind, it is fairly straightforward to collect and watch the logs.
 
 ## Resource Usage
 I've been running my instance on a VPS with 2GB of RAM and 2 CPU cores. You could probably get away with lower resources but you might be cutting it too close. I recommend the same loadout that I have.
 Ideally pick something with both IPv4 and IPv6 connectivity.
 
+## Future Improvements
+
+* At some point in the future, i would like to have DoH also pass through `dnsdist`. That way we will have a singular place to control rate-limits and such.
+* Maybe find a replacement for DNSCrypt-proxy, something that supports DoT or DoQ upstreams as well. DNSCrypt-proxy right now only supports DoH and ODoH upstreams(and DNSCrypt but we dont care abou't that one).
+
 <p>
-  <div class="timestamp">timestamp:1789526651</div>
-  <div class="version">version:1.0.0</div>
+  <div class="timestamp">timestamp:1790728091</div>
+  <div class="version">version:1.1.0</div>
   <div class="rsslink">https://blog.terminaldweller.com/rss/feed</div>
   <div class="originalurl">https://raw.githubusercontent.com/terminaldweller/blog/main/mds/arecursivednsserver.md</div>
 </p>

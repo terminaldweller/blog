@@ -57,7 +57,7 @@ var blogs = [
     slug: "what_to_do_with_your_dns",
     body: fs.readFileSync(path.join(__dirname) + "/mds/DNS.md"),
     teaser: fs.readFileSync(path.join(__dirname) + "/mds/DNS.txt"),
-    keywords: ["DNS", "DoH", "DoT", "ODoH", "Tor", "dnscrypt-proxy", "vagrant"],
+    keywords: ["dns", "dot", "dot", "odoh", "tor", "dnscrypt-proxy", "vagrant"],
     lastUpdatedAt: Date.now(),
   },
   {
@@ -65,7 +65,7 @@ var blogs = [
     slug: "after_ntp_comes_nts",
     body: fs.readFileSync(path.join(__dirname) + "/mds/NTP.md"),
     teaser: fs.readFileSync(path.join(__dirname) + "/mds/NTP.txt"),
-    keywords: ["NTP", "NTS", "SOCKS5"],
+    keywords: ["ntp", "nts", "socks5"],
     lastUpdatedAt: Date.now(),
   },
   {
@@ -91,7 +91,7 @@ var blogs = [
     slug: "zsh_go_fast",
     body: fs.readFileSync(path.join(__dirname) + "/mds/zshgofast.md"),
     teaser: fs.readFileSync(path.join(__dirname) + "/mds/zshgofast.txt"),
-    keywords: ["zsh", "async"],
+    keywords: ["zsh"],
     lastUpdatedAt: Date.now(),
   },
   {
@@ -99,7 +99,7 @@ var blogs = [
     slug: "a_recursive_dns_server",
     body: fs.readFileSync(path.join(__dirname) + "/mds/arecursivednsserver.md"),
     teaser: fs.readFileSync(path.join(__dirname) + "/mds/arecursivednsserver.txt"),
-    keywords: ["DNS"],
+    keywords: ["dns"],
     lastUpdatedAt: Date.now(),
   }
 ];
