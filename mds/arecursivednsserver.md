@@ -475,13 +475,16 @@ And our Tor instances:
       - ALL
 ```
 
-We don't have any special requirements for tor besides the DNSPort that dnscryptproxy will use for its bootstrap resolver addresses. Just make sure that the ports is being served on `0.0.0.0` and not localhost. Besides that, i guess use bridges. maybe.
+We don't have any special requirements for tor besides the DNSPort that dnscryptproxy will use for its bootstrap resolver addresses. Just make sure that the ports is being served on `0.0.0.0` and not localhost. Besides that, i guess use bridges. Maybe.
 The `resolv.conf` file is a static one, containing a DNS server of your choosing. I'm using cloudflare's `1.1.1.1` because the chances of them blocking tor is lower, for very obvious reasons, might i add.
 
 ## Block Lists
 
 And the final piece. Our supercronic service just downloads a block list. You can choose whichever one you want. There are a ton of block lists all over the internet.
 Feel free to add more lists or just a different list.
+One thing to note here is that we are bind-mounting a directory and that directory is being shared by both supercronic and CoreDNS. This is because for a bind-mount, what the bind-mount is actualy watching is the inode. When we update a file, depending on how we do it, the inode might change, and so CoreDNS might not pick up the update since it's watching a totally different inode. By bind-mounting a directoy, we can stop worrying about all of that so even if the inode changes, we will still see the change.
+Also, because of the way we are handling hosts file updates, we will get a new inode every time we update. So in our case, we have to bind-mount the directory containing the file for CoreDNS.
+The CoreDNS `hosts` plugin detects the change withing its default reload time which is 5 seconds so we don't need to reload coredns on every hosts file update.
 
 ```yaml
   supercronic:
@@ -527,7 +530,6 @@ curl --retry 10 \
   && /usr/local/bin/supercronic "$args"
 ```
 
-The startup script downloads our block list(s) and then the crontab file determines how often it should update. The only thing to note here is that we first download the list to a temp directory and only after making sure tht the list download went smoothly, replace it with the new list.
 You can look [here](https://github.com/StevenBlack/hosts) and [here](https://github.com/firehol/blocklist-ipsets) and [here](https://github.com/hagezi/dns-blocklists) for more lists to choose from.
 
 Finally, you can find the entire recursive resolver [here](https://github.com/terminaldweller/recursive_resolver).
@@ -547,8 +549,8 @@ Ideally pick something with both IPv4 and IPv6 connectivity.
 * Maybe find a replacement for DNSCrypt-proxy, something that supports DoT or DoQ upstreams as well. DNSCrypt-proxy right now only supports DoH and ODoH upstreams(and DNSCrypt but we dont care abou't that one).
 
 <p>
-  <div class="timestamp">timestamp:1790728091</div>
-  <div class="version">version:1.1.0</div>
+  <div class="timestamp">timestamp:1790778631</div>
+  <div class="version">version:1.2.0</div>
   <div class="rsslink">https://blog.terminaldweller.com/rss/feed</div>
   <div class="originalurl">https://raw.githubusercontent.com/terminaldweller/blog/main/mds/arecursivednsserver.md</div>
 </p>

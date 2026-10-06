@@ -99,7 +99,15 @@ var blogs = [
     slug: "a_recursive_dns_server",
     body: fs.readFileSync(path.join(__dirname) + "/mds/arecursivednsserver.md"),
     teaser: fs.readFileSync(path.join(__dirname) + "/mds/arecursivednsserver.txt"),
-    keywords: ["dns"],
+    keywords: ["dns", "dnsdist"],
+    lastUpdatedAt: Date.now(),
+  },
+  {
+    title: "An authoritative DNS server",
+    slug: "a_authoritative_dns_server",
+    body: fs.readFileSync(path.join(__dirname) + "/mds/anauthoritativednsserver.md"),
+    teaser: fs.readFileSync(path.join(__dirname) + "/mds/anauthoritativednsserver.txt"),
+    keywords: ["dns","yggdrasil","dnsdist","knot"],
     lastUpdatedAt: Date.now(),
   }
 ];
