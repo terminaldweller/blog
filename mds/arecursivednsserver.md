@@ -203,8 +203,15 @@ addTLSLocal("0.0.0.0:8853", certificate, privateKey, {
     minTLSVersion = "tls1.3",
     maxConcurrentTCPConnections = 1000
 })
+addTLSLocal("[::]:8853", certificate, privateKey, {
+    provider = "openssl",
+    minTLSVersion = "tls1.3",
+    maxConcurrentTCPConnections = 1000
+})
 
 addDOQLocal("0.0.0.0:8853", certificate, privateKey,
+            {idleTimeout = 30, congestionControlAlgo = "cubic"})
+addDOQLocal("[::]:8853", certificate, privateKey,
             {idleTimeout = 30, congestionControlAlgo = "cubic"})
 
 newServer({
@@ -549,8 +556,8 @@ Ideally pick something with both IPv4 and IPv6 connectivity.
 * Maybe find a replacement for DNSCrypt-proxy, something that supports DoT or DoQ upstreams as well. DNSCrypt-proxy right now only supports DoH and ODoH upstreams(and DNSCrypt but we dont care abou't that one).
 
 <p>
-  <div class="timestamp">timestamp:1790778631</div>
-  <div class="version">version:1.2.0</div>
+  <div class="timestamp">timestamp:1791518691</div>
+  <div class="version">version:1.3.0</div>
   <div class="rsslink">https://blog.terminaldweller.com/rss/feed</div>
   <div class="originalurl">https://raw.githubusercontent.com/terminaldweller/blog/main/mds/arecursivednsserver.md</div>
 </p>
