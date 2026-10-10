@@ -5,7 +5,7 @@ Our goals:
 - privacy: we want our DNS requests to only be known to the actual servers answering the DNS queries and nobody else in between (does not apply to privacy from the operator of this service)
 - anonymity: we dont want the DNS server answering our queries to know that we are who we are (does not apply to privacy from the operator of this service)
 - security: well we are hosting this on the internet presumably so ...
-- DoH, DoT and DoQ
+- DoH, DoT, DoQ and DoH3
 - observability: we want to have an easy way to have the logs available and/or sent elsewhere
 - filtering: we want to have the ability to filter based on readily available lists
 
@@ -73,8 +73,12 @@ The waf config is pretty straightforward. Its a normal reverse-proxy setting for
 ```nginx
 server {
   listen 443 ssl;
+  listen [::]:443 ssl;
+  listen 443 quic reuseport;
+  listen [::]:443 quic reuseport;
   http2 on;
-  if ($server_protocol !~* "HTTP/2") {
+  http3 on;
+  if ($server_protocol !~* "^HTTP/(2|3)[.]0$") {
     return 444;
   }
 
@@ -98,16 +102,14 @@ server {
 
   fastcgi_hide_header X-Powered-By;
 
-  error_page 500 502 503 504 /50x.html;
   location = /50x.html {
       root   /usr/share/nginx/html;
   }
 
-  error_page 401 403 404 /404.html;
   location /dns-query {
   modsecurity_rules '
     SecRuleEngine On
-    SecRule REQUEST_URI "@streq /dns-query" "id:100001,phase:1,pass,nolog,ctl:ruleRemoveById=920420"
+    SecRuleRemoveById 920280 920420
   ';
     proxy_pass http://172.31.33.20:8053;
   }
@@ -148,6 +150,7 @@ if ($server_protocol !~* "HTTP/2") {
         max-file: "5"
     ports:
       - "443:443/tcp"
+      - "443:443/udp"
     networks:
       frontend:
       dns:
@@ -164,7 +167,7 @@ if ($server_protocol !~* "HTTP/2") {
       - ALLOWED_REQUEST_CONTENT_TYPE_CHARSET=|utf-8|
       - VALIDATE_UTF8_ENCODING=1
       - ALLOWED_METHODS=GET POST
-      - ALLOWED_HTTP_VERSIONS=HTTP/2.0
+      - ALLOWED_HTTP_VERSIONS=HTTP/2.0 HTTP/3.0
     runtime: runsc
     security_opt:
       - no-new-privileges
@@ -332,14 +335,14 @@ https://.:8053 dns://.:8054 {
       - ALL
 ```
 
-Coredns is our main forwarder. This is where we cache the queries as well as where we enforce the block lists(e.g. the hosts file that we are bind mounting).
+Coredns is our main forwarder. This is where we cache the queries as well as where we enforce the block lists(e.g. The hosts file that we are bind mounting).
 The two listeners are for DoH and Dot/DoQ respectively.
 Here we can talk about another reason why i chose coredns. In order to let our waf actually do its job, we are terminating tls for DoH on the waf to have be able to inspect everything but that leaves us with the trouble of having to find a DNS server implementation that does DoH without TLS. As I'm sure you can guess, coredns to the rescue.
 
 After Coredns, we have to hand off the requests to dnscrypt-proxy.
 
 Below is the options that we need. The rest of the options are really up to you. Also, we turn caching off here since we really dont need dnscrypt-proxy to cache because coredns is already caching the queries for us. We don't want to have to deal with double-caching weirdness.
-For bootstrap resolvers, we will use tor's DNSPort so those will also pass through tor. Both networks that dnscrypt has, `dns` and `tor` will be marked internal, so this container cannot contact the outside world, i.e. we will not be leaking anything from dnscryptproxy.
+For bootstrap resolvers, we will use tor's DNSPort so those will also pass through tor. Both networks that dnscrypt has, `dns` and `tor` will be marked internal, so this container cannot contact the outside world, i.e. We will not be leaking anything from dnscryptproxy.
 Finally, we will disable caching on dnscryptproxy since we want to handle caching on CoreDNS and want to avoid double-caching.
 
 ```toml
@@ -556,8 +559,8 @@ Ideally pick something with both IPv4 and IPv6 connectivity.
 * Maybe find a replacement for DNSCrypt-proxy, something that supports DoT or DoQ upstreams as well. DNSCrypt-proxy right now only supports DoH and ODoH upstreams(and DNSCrypt but we dont care abou't that one).
 
 <p>
-  <div class="timestamp">timestamp:1791518691</div>
-  <div class="version">version:1.3.0</div>
+  <div class="timestamp">timestamp:1791646819</div>
+  <div class="version">version:1.4.0</div>
   <div class="rsslink">https://blog.terminaldweller.com/rss/feed</div>
   <div class="originalurl">https://raw.githubusercontent.com/terminaldweller/blog/main/mds/arecursivednsserver.md</div>
 </p>
