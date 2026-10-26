@@ -17,8 +17,8 @@ services:
       - 9000:8443
     restart: unless-stopped
     networks:
-      blognet: 172.16.55.10
-        ipv4_address: 
+      blognet:
+        ipv4_address: 172.16.55.10
     environment:
       - MODSECURITY_RULE_ENGINE=On
       - BLOCKING_PARANOIA=1
