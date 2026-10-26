@@ -14,7 +14,7 @@ services:
         max-size: "50m"
         max-file: "3"
     ports:
-      - 9000:8443
+      - 9000:443
     restart: unless-stopped
     networks:
       blognet:
