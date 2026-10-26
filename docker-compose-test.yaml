@@ -100,7 +100,7 @@ services:
       - mongo_pass
     security_opt:
       - no-new-privileges
-    runtime: runsc
+    runtime: runc
 networks:
   blognet:
     enable_ipv6: true
