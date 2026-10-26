@@ -72,7 +72,7 @@ services:
     read_only: true
     runtime: runsc
   mongo:
-    image: mongo:7
+    image: mongo:9
     deploy:
       resources:
         limits:
