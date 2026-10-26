@@ -1,6 +1,9 @@
 services:
   nginx-crs:
-    image: owasp/modsecurity-crs:4.25-nginx-alpine-lts
+    image: waf
+    build:
+      context: .
+      dockerfile: ./Dockerfile_waf
     deploy:
       resources:
         limits:
@@ -11,19 +14,21 @@ services:
         max-size: "50m"
         max-file: "3"
     ports:
-      - 19010:8443
+      - 9000:8443
     restart: unless-stopped
     networks:
-      blognet: 172.17.55.10
+      blognet: 172.16.55.10
         ipv4_address: 
     environment:
-      - BACKEND="http://blog:9000"
-      - PROXY_SSL_CERT=/etc/letsencrypt/live/blog.terminaldweller.com/fullchain.pem
-      - PROXY_SSL_CER_KEY=/etc/letsencrypt/live/blog.terminaldweller.com/privkey.pem
-      - SSL_PORT=8443
+      - MODSECURITY_RULE_ENGINE=On
+      - BLOCKING_PARANOIA=1
+      - DETECTION_PARANOIA=1
+      - ALLOWED_REQUEST_CONTENT_TYPE_CHARSET=|utf-8|
+      - VALIDATE_UTF8_ENCODING=1
+      - ALLOWED_METHODS=GET HEAD
+      - ALLOWED_HTTP_VERSIONS=HTTP/2.0 HTTP/3.0
     volumes:
-      - ./certs/server.cert:/etc/letsencrypt/live/blog.terminaldweller.com/fullchain.pem:ro
-      - ./certs/server.key:/etc/letsencrypt/live/blog.terminaldweller.com/privkey.pem:ro
+      - ./nginx.conf:/etc/nginx/conf.d/waf.conf:ro
     security_opt:
       - no-new-privileges
     cap_drop:
@@ -51,11 +56,9 @@ services:
     restart: unless-stopped
     networks:
       blognet:
-        ipv4_address: 172.17.55.11
+        ipv4_address: 172.16.55.11
       dbnet:
-        ipv4_address: 172.17.56.11
-    ports:
-      - "127.0.0.1:19009:9000"
+        ipv4_address: 172.16.56.11
     cap_drop:
       - ALL
     depends_on:
@@ -83,14 +86,14 @@ services:
         max-file: "3"
     networks:
       dbnet:
-        ipv4_address: 172.17.56.10
+        ipv4_address: 172.16.56.10
     restart: unless-stopped
     ports:
       - "127.0.0.1:27117:27017"
       - "127.0.0.1:27118:27018"
       - "127.0.0.1:27119:27019"
-    # volumes:
-    #   - blog-data:/data/db
+    volumes:
+      - blog-data:/data/db
     environment:
       - MONGO_INITDB_ROOT_USERNAME_FILE=/run/secrets/mongo_user
       - MONGO_INITDB_ROOT_PASSWORD_FILE=/run/secrets/mongo_pass
@@ -106,15 +109,15 @@ networks:
     driver: bridge
     ipam:
       config:
-        - subnet: 172.17.55.0/24
+        - subnet: 172.16.55.0/24
   dbnet:
     enable_ipv6: false
     driver: bridge
     ipam:
       config:
-        - subnet: 172.17.56.0/24
-# volumes:
-#   blog-data:
+        - subnet: 172.16.56.0/24
+volumes:
+  blog-data:
 secrets:
   mongo_user:
     file: ./mongo_secrets/mongo_user

@@ -9,7 +9,7 @@ const db = {};
 db.mongoose = mongoose;
 const db_pass = fs.readFileSync("/run/secrets/mongo_pass").toString();
 const db_user = fs.readFileSync("/run/secrets/mongo_user").toString();
-db.url = "mongodb://" + db_user + ":" + db_pass + "@mongo:27017";
+db.url = "mongodb://" + db_user + ":" + db_pass + "@172.16.56.10:27017";
 
 const BlogPostSchema = new Schema({
   title: { type: String, required: true, trim: true },
