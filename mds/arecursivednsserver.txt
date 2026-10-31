@@ -6,10 +6,10 @@ answering the DNS queries and nobody else in between (does not apply to
 privacy from the operator of this service) - anonymity: we dont want the
 DNS server answering our queries to know that we are who we are (does
 not apply to privacy from the operator of this service) - security: well
-we are hosting this on the internet presumably so … - DoH, DoT and DoQ -
-observability: we want to have an easy way to have the logs available
-and/or sent elsewhere - filtering: we want to have the ability to filter
-based on readily available lists
+we are hosting this on the internet presumably so … - DoH, DoT, DoQ and
+DoH3 - observability: we want to have an easy way to have the logs
+available and/or sent elsewhere - filtering: we want to have the ability
+to filter based on readily available lists
 
 TL;DR this is going to be a bit long. You can find the repo that holds
 everything https://github.com/terminaldweller/recursive_resolver[here].
@@ -64,7 +64,11 @@ dnsdist has some benefits as well.
 We will use https://github.com/DNSCrypt/dnscrypt-proxy[dnscrypt-proxy]
 as our forwarder through tor. It can fulfill all our requirements:
 TCP-only queries, only encrypted upstreams, sends traffic through a
-socks5 proxy which makes sending over tor a cinch.
+socks5 proxy which makes sending over tor a cinch. Since all
+dnscrypt-proxy traffic will be going through tor, the initial startup
+time will be a little too long for comfort. So we will bindmount the
+cache directory for dnscrypt-proxy so after the first-time start we
+won’t have to do another cold start again.
 
 Tor is tor. It’s slow, circuits go down etc. so we will be running 3 tor
 containers behind a reverse proxy doing round robin to attempt to
@@ -80,7 +84,29 @@ just be us talking about implementation details.
 
 We will also use https://github.com/aptible/supercronic[supercronic] to
 update our filter lists that https://github.com/coredns/coredns[CoreDNS]
-consumes.
+consumes. We will also leave the caching to Coredns. I experimented with
+both dnsdist and Coredns as the service in charge of caching. My best
+guess is that coredns’s prefethcing makes a big difference in terms of
+responsiveness and believe me we need responsiveness when we are
+forwarding everything on TCP through tor(dnsdist does not support
+prefetching). If you decide to go with dnsdist as your cache, keep in
+mind that with DoH we also get EDNS which changes the query that dnsdist
+caches so the same query coming in through DoH and DoQ or DoT would be
+different. In other words, a DoH request will not result in it being
+cached for DoT or DoQ if that makes any sense. Those two groups
+essentially end up with their own cache groups.
+
+The filtering and blocking will be handled mostly by CoreDNS.
+Supercronic will handle updating and merging the lists. Keep in mind
+that very big lists will require a lot of initial processing time and
+also a lot of memory(multiple gigabytes). Some part of the blocking will
+be handled by dnsdist since CoreDNS does not support outright blocking a
+domain and all its subdomains. Because of that, we will be using dnsdist
+to block certain domains. The reason for this is
+https://citizenlab.ca/research/how-discover-tech-turned-targeted-ads-into-a-pipeline-for-spyware/[this
+incident]. If you don’t feel like reading that, the short version is
+that ad-blocking is no longer a privacy concern. It’s a security
+concern.
 
 Let’s talk about the networks a bit as well. Among our containers, the
 CoreDNS and DNSCrypt-proxy networks will have docker networks marked
@@ -91,7 +117,8 @@ safer. They won’t leak because they can’t, not because i think i set
 them up correctly. This is a safer design.
 
 All the endpoints are at standard locations, i.e. `+:443+` and
-`+/dns-qeury+` for DoH, and `+:853+` for DoT and DoQ.
+`+/dns-qeury+` for DoH, and `+:853+` for DoT and DoQ. We do not serve
+non-encrypted DNS.
 
 At the end, we will talk a little about what the local network side of
 things can look like or at least what mine looks like if you choose to
@@ -130,8 +157,12 @@ DoH URI since a valid DoH requests looks all kinds of bad to a waf.
 ----
 server {
   listen 443 ssl;
+  listen [::]:443 ssl;
+  listen 443 quic reuseport;
+  listen [::]:443 quic reuseport;
   http2 on;
-  if ($server_protocol !~* "HTTP/2") {
+  http3 on;
+  if ($server_protocol !~* "^HTTP/(2|3)[.]0$") {
     return 444;
   }
 
@@ -155,16 +186,14 @@ server {
 
   fastcgi_hide_header X-Powered-By;
 
-  error_page 500 502 503 504 /50x.html;
   location = /50x.html {
       root   /usr/share/nginx/html;
   }
 
-  error_page 401 403 404 /404.html;
   location /dns-query {
   modsecurity_rules '
     SecRuleEngine On
-    SecRule REQUEST_URI "@streq /dns-query" "id:100001,phase:1,pass,nolog,ctl:ruleRemoveById=920420"
+    SecRuleRemoveById 920280 920420
   ';
     proxy_pass http://172.31.33.20:8053;
   }
@@ -213,6 +242,7 @@ will be using http/2 for our incoming DoH requests.
         max-file: "5"
     ports:
       - "443:443/tcp"
+      - "443:443/udp"
     networks:
       frontend:
       dns:
@@ -229,7 +259,7 @@ will be using http/2 for our incoming DoH requests.
       - ALLOWED_REQUEST_CONTENT_TYPE_CHARSET=|utf-8|
       - VALIDATE_UTF8_ENCODING=1
       - ALLOWED_METHODS=GET POST
-      - ALLOWED_HTTP_VERSIONS=HTTP/2.0
+      - ALLOWED_HTTP_VERSIONS=HTTP/2.0 HTTP/3.0
     runtime: runsc
     security_opt:
       - no-new-privileges
@@ -261,9 +291,27 @@ For our other ingestion point, dnsdist, we have:
 [source,lua]
 ----
 -- vim: ft=lua
+-- vim: ft=lua
+infolog("CLIENT-IP-CHECK configuration loaded")
 setLocal("127.0.0.1:5300")
 
 setACL({"0.0.0.0/0", "::/0"})
+addAction(AllRule(), LuaAction(function(dq)
+    infolog(
+        "CLIENT-IP-CHECK client=" .. dq.remoteaddr:toString() .. " qname=" ..
+            dq.qname:toString())
+    return DNSAction.None
+end))
+
+-- pc = newPacketCache(10000, {
+--     maxTTL = 86400,
+--     minTTL = 0,
+--     temporaryFailureTTL = 60,
+--     staleTTL = 60,
+--     dontAge = false,
+--     shuffle = false
+-- })
+-- getPool(""):setCache(pc)
 
 local certificate = "/certs/fullchain.pem"
 local privateKey = "/certs/privkey.pem"
@@ -271,18 +319,22 @@ local privateKey = "/certs/privkey.pem"
 addTLSLocal("0.0.0.0:8853", certificate, privateKey, {
     provider = "openssl",
     minTLSVersion = "tls1.3",
-    maxConcurrentTCPConnections = 1000
+    maxConcurrentTCPConnections = 1000,
+    numberOfStoredSessions = 0
 })
 
 addDOQLocal("0.0.0.0:8853", certificate, privateKey,
             {idleTimeout = 30, congestionControlAlgo = "cubic"})
 
+addDOHLocal("0.0.0.0:8053", nil, nil, {"/dns-query"},
+            {trustForwardedForHeader = true})
+
 newServer({
     address = "172.31.33.20:8054",
     name = "coredns",
     tcpOnly = true,
-    checkTCP = true,
-    checkInterval = 10
+    checkTCP = false,
+    healthCheckMode = "up"
 })
 
 setRingBuffersSize(100000, 10)
@@ -295,6 +347,25 @@ abuse:setQTypeRate(DNSQType.ANY, 5, 10, "Exceeded ANY query rate", 60,
                    DNSAction.Drop)
 
 function maintenance() abuse:apply() end
+
+webserver("0.0.0.0:8083")
+setWebserverConfig({
+    password = "",
+    apiKey = "",
+    acl = "172.16.0.0/12"
+})
+
+controlSocket("0.0.0.0:5199")
+setKey("")
+setConsoleACL({"172.16.0.0/12"})
+
+local blockedDomains = newSuffixMatchNode()
+for line in io.lines("/etc/dnsdist/blocked-domains.txt") do
+    local domain = line:gsub("#.*$", ""):match("^%s*(%S+)%s*$")
+    if domain then blockedDomains:add(newDNSName(domain)) end
+end
+
+addAction(QNameSuffixRule(blockedDomains, true), RCodeAction(DNSRCode.NXDOMAIN))
 ----
 
 [source,yaml]
@@ -314,9 +385,12 @@ function maintenance() abuse:apply() end
       - ./dnsdist.conf:/etc/dnsdist/conf.d/10-encrypted-dns.conf:ro
       - ./privkey1.pem:/certs/privkey.pem:ro
       - ./fullchain1.pem:/certs/fullchain.pem:ro
+      - ./blocked-domains.txt:/etc/dnsdist/blocked-domains.txt:ro
     ports:
       - "853:8853/tcp"
       - "853:8853/udp"
+      - "127.0.0.1:8083:8083/tcp"
+      - "127.0.0.1:5199:5199/tcp"
     networks:
       frontend:
       dns:
@@ -399,7 +473,7 @@ https://.:8053 dns://.:8054 {
 ----
 
 Coredns is our main forwarder. This is where we cache the queries as
-well as where we enforce the block lists(e.g. the hosts file that we are
+well as where we enforce the block lists(e.g. The hosts file that we are
 bind mounting). The two listeners are for DoH and Dot/DoQ respectively.
 Here we can talk about another reason why i chose coredns. In order to
 let our waf actually do its job, we are terminating tls for DoH on the
@@ -416,7 +490,7 @@ for us. We don’t want to have to deal with double-caching weirdness. For
 bootstrap resolvers, we will use tor’s DNSPort so those will also pass
 through tor. Both networks that dnscrypt has, `+dns+` and `+tor+` will
 be marked internal, so this container cannot contact the outside world,
-i.e. we will not be leaking anything from dnscryptproxy. Finally, we
+i.e. We will not be leaking anything from dnscryptproxy. Finally, we
 will disable caching on dnscryptproxy since we want to handle caching on
 CoreDNS and want to avoid double-caching.
 
@@ -630,16 +704,68 @@ reload coredns on every hosts file update.
 [source,sh]
 ----
 #!/bin/sh
+set -eu
 
-args="$@"
+update_hosts() (
+    mkdir -p /hosts
+    workdir=$(mktemp -d /hosts/.hosts-update.XXXXXX)
+    trap 'rm -rf "$workdir"' 0
+    trap 'exit 1' HUP INT TERM
 
-curl --retry 10 \
-  --connect-timeout 30 \
-  "https://raw.githubusercontent.com/StevenBlack/hosts/master/alternates/fakenews-gambling/hosts" \
-  -o /hosts/hosts.tmp \
-  && mv /hosts/hosts.tmp /hosts/hosts \
-  && /usr/local/bin/supercronic "$args"
+    cat > "$workdir/sources" <<'EOF'
+https://raw.githubusercontent.com/StevenBlack/hosts/master/alternates/fakenews-gambling/hosts
+https://raw.githubusercontent.com/hagezi/dns-blocklists-legacy/main/hosts/pro.txt
+EOF
+# https://raw.githubusercontent.com/hagezi/dns-blocklists-legacy/main/hosts/tif.txt
+
+    : > "$workdir/combined"
+
+    while IFS= read -r url; do
+        printf 'Downloading %s\n' "$url"
+        curl --fail --show-error --silent --location \
+            --retry 10 \
+            --retry-all-errors \
+            --connect-timeout 30 \
+            --max-time 300 \
+            "$url" \
+            -o "$workdir/download"
+        awk '
+            {
+                sub(/\r$/, "")
+                sub(/#.*/, "")
+            }
+            $1 == "0.0.0.0" && NF == 2 {
+                print "0.0.0.0 " $2
+            }
+        ' "$workdir/download" > "$workdir/parsed"
+        if [ ! -s "$workdir/parsed" ]; then
+            printf 'ERROR: No usable hosts entries from %s\n' "$url" >&2
+            exit 1
+        fi
+        cat "$workdir/parsed" >> "$workdir/combined"
+    done < "$workdir/sources"
+    rm -f "$workdir/download" "$workdir/parsed"
+    TMPDIR="$workdir" LC_ALL=C sort -u \
+        "$workdir/combined" > "$workdir/hosts"
+    test -s "$workdir/hosts"
+    count=$(wc -l < "$workdir/hosts")
+    mv -f "$workdir/hosts" /hosts/hosts
+    printf 'Updated /hosts/hosts: %s unique entries\n' "$count"
+)
+
+if [ "${1:-}" = "--update" ]; then
+    update_hosts
+    exit 0
+fi
+if ! /bin/sh "$0" --update; then
+    printf 'Initial update failed; keeping existing hosts file.\n' >&2
+fi
+
+exec /usr/local/bin/supercronic "$@"
 ----
+
+I have not included the tif list since its gigantic and my VPSes can’t
+handle it. If you have more resources , then definitely go for it.
 
 You can look https://github.com/StevenBlack/hosts[here] and
 https://github.com/firehol/blocklist-ipsets[here] and
@@ -648,14 +774,6 @@ from.
 
 Finally, you can find the entire recursive resolver
 https://github.com/terminaldweller/recursive_resolver[here].
-
-=== A note on observability
-
-We mentioned it once and then never afterwards. We are running a compose
-file. It is trivial to have logging enabled. Since I view this as a
-public service, i leave the logging mechanism to the readers. But since
-we designed with observability in mind, it is fairly straightforward to
-collect and watch the logs.
 
 === Resource Usage
 
@@ -666,16 +784,13 @@ pick something with both IPv4 and IPv6 connectivity.
 
 === Future Improvements
 
-* At some point in the future, i would like to have DoH also pass
-through `+dnsdist+`. That way we will have a singular place to control
-rate-limits and such.
 * Maybe find a replacement for DNSCrypt-proxy, something that supports
 DoT or DoQ upstreams as well. DNSCrypt-proxy right now only supports DoH
-and ODoH upstreams(and DNSCrypt but we dont care abou’t that one).
+and ODoH upstreams(and DNSCrypt but we dont care about that one).
 
-timestamp:1790778631
+timestamp:1793413127
 
-version:1.2.0
+version:1.5.0
 
 https://blog.terminaldweller.com/rss/feed
 

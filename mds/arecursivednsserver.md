@@ -42,11 +42,12 @@ The rest of the post will just be us talking about implementation details.
 We will also use [supercronic](https://github.com/aptible/supercronic) to update our filter lists that [CoreDNS](https://github.com/coredns/coredns) consumes.
 We will also leave the caching to Coredns. I experimented with both dnsdist and Coredns as the service in charge of caching. My best guess is that coredns's prefethcing makes a big difference in terms of responsiveness and believe me we need responsiveness when we are forwarding everything on TCP through tor(dnsdist does not support prefetching). If you decide to go with dnsdist as your cache, keep in mind that with DoH we also get EDNS which changes the query that dnsdist caches so the same query coming in through DoH and DoQ or DoT would be different. In other words, a DoH request will not result in it being cached for DoT or DoQ if that makes any sense. Those two groups essentially end up with their own cache groups.
 
-The filtering and blocking will be handled by CoreDNS. Supercronic will handle updating and merging the lists. Keep in mind that very big lists will require a lot of initial processing time and also a lot of memory.
+The filtering and blocking will be handled mostly by CoreDNS. Supercronic will handle updating and merging the lists. Keep in mind that very big lists will require a lot of initial processing time and also a lot of memory(multiple gigabytes).
+Some part of the blocking will be handled by dnsdist since CoreDNS does not support outright blocking a domain and all its subdomains. Because of that, we will be using dnsdist to block certain domains. The reason for this is [this incident](https://citizenlab.ca/research/how-discover-tech-turned-targeted-ads-into-a-pipeline-for-spyware/). If you don't feel like reading that, the short version is that ad-blocking is no longer a privacy concern. It's a security concern.
 
 Let's talk about the networks a bit as well. Among our containers, the CoreDNS and DNSCrypt-proxy networks will have docker networks marked internal,e.g. `internal: true`, because first, in case of CoreDNS it does not need to talk to anything outside this compose file and for DNSCrypt-proxy, it will only communicate through tor. This way, it's safer. They won't leak because they can't, not because i think i set them up correctly. This is a safer design.
 
-All the endpoints are at standard locations, i.e. `:443` and `/dns-qeury` for DoH, and `:853` for DoT and DoQ.
+All the endpoints are at standard locations, i.e. `:443` and `/dns-qeury` for DoH, and `:853` for DoT and DoQ. We do not serve non-encrypted DNS.
 
 At the end, we will talk a little about what the local network side of things can look like or at least what mine looks like if you choose to host this on the internet.
 
@@ -197,9 +198,27 @@ For our other ingestion point, dnsdist, we have:
 
 ```lua
 -- vim: ft=lua
+-- vim: ft=lua
+infolog("CLIENT-IP-CHECK configuration loaded")
 setLocal("127.0.0.1:5300")
 
 setACL({"0.0.0.0/0", "::/0"})
+addAction(AllRule(), LuaAction(function(dq)
+    infolog(
+        "CLIENT-IP-CHECK client=" .. dq.remoteaddr:toString() .. " qname=" ..
+            dq.qname:toString())
+    return DNSAction.None
+end))
+
+-- pc = newPacketCache(10000, {
+--     maxTTL = 86400,
+--     minTTL = 0,
+--     temporaryFailureTTL = 60,
+--     staleTTL = 60,
+--     dontAge = false,
+--     shuffle = false
+-- })
+-- getPool(""):setCache(pc)
 
 local certificate = "/certs/fullchain.pem"
 local privateKey = "/certs/privkey.pem"
@@ -207,25 +226,22 @@ local privateKey = "/certs/privkey.pem"
 addTLSLocal("0.0.0.0:8853", certificate, privateKey, {
     provider = "openssl",
     minTLSVersion = "tls1.3",
-    maxConcurrentTCPConnections = 1000
-})
-addTLSLocal("[::]:8853", certificate, privateKey, {
-    provider = "openssl",
-    minTLSVersion = "tls1.3",
-    maxConcurrentTCPConnections = 1000
+    maxConcurrentTCPConnections = 1000,
+    numberOfStoredSessions = 0
 })
 
 addDOQLocal("0.0.0.0:8853", certificate, privateKey,
             {idleTimeout = 30, congestionControlAlgo = "cubic"})
-addDOQLocal("[::]:8853", certificate, privateKey,
-            {idleTimeout = 30, congestionControlAlgo = "cubic"})
+
+addDOHLocal("0.0.0.0:8053", nil, nil, {"/dns-query"},
+            {trustForwardedForHeader = true})
 
 newServer({
     address = "172.31.33.20:8054",
     name = "coredns",
     tcpOnly = true,
-    checkTCP = true,
-    checkInterval = 10
+    checkTCP = false,
+    healthCheckMode = "up"
 })
 
 setRingBuffersSize(100000, 10)
@@ -238,6 +254,25 @@ abuse:setQTypeRate(DNSQType.ANY, 5, 10, "Exceeded ANY query rate", 60,
                    DNSAction.Drop)
 
 function maintenance() abuse:apply() end
+
+webserver("0.0.0.0:8083")
+setWebserverConfig({
+    password = "",
+    apiKey = "",
+    acl = "172.16.0.0/12"
+})
+
+controlSocket("0.0.0.0:5199")
+setKey("")
+setConsoleACL({"172.16.0.0/12"})
+
+local blockedDomains = newSuffixMatchNode()
+for line in io.lines("/etc/dnsdist/blocked-domains.txt") do
+    local domain = line:gsub("#.*$", ""):match("^%s*(%S+)%s*$")
+    if domain then blockedDomains:add(newDNSName(domain)) end
+end
+
+addAction(QNameSuffixRule(blockedDomains, true), RCodeAction(DNSRCode.NXDOMAIN))
 ```
 
 ```yaml
@@ -256,9 +291,12 @@ function maintenance() abuse:apply() end
       - ./dnsdist.conf:/etc/dnsdist/conf.d/10-encrypted-dns.conf:ro
       - ./privkey1.pem:/certs/privkey.pem:ro
       - ./fullchain1.pem:/certs/fullchain.pem:ro
+      - ./blocked-domains.txt:/etc/dnsdist/blocked-domains.txt:ro
     ports:
       - "853:8853/tcp"
       - "853:8853/udp"
+      - "127.0.0.1:8083:8083/tcp"
+      - "127.0.0.1:5199:5199/tcp"
     networks:
       frontend:
       dns:
@@ -532,25 +570,71 @@ The CoreDNS `hosts` plugin detects the change withing its default reload time wh
 
 ```sh
 #!/bin/sh
+set -eu
 
-args="$@"
+update_hosts() (
+    mkdir -p /hosts
+    workdir=$(mktemp -d /hosts/.hosts-update.XXXXXX)
+    trap 'rm -rf "$workdir"' 0
+    trap 'exit 1' HUP INT TERM
 
-curl --retry 10 \
-  --connect-timeout 30 \
-  "https://raw.githubusercontent.com/StevenBlack/hosts/master/alternates/fakenews-gambling/hosts" \
-  -o /hosts/hosts.tmp \
-  && mv /hosts/hosts.tmp /hosts/hosts \
-  && /usr/local/bin/supercronic "$args"
+    cat > "$workdir/sources" <<'EOF'
+https://raw.githubusercontent.com/StevenBlack/hosts/master/alternates/fakenews-gambling/hosts
+https://raw.githubusercontent.com/hagezi/dns-blocklists-legacy/main/hosts/pro.txt
+EOF
+# https://raw.githubusercontent.com/hagezi/dns-blocklists-legacy/main/hosts/tif.txt
+
+    : > "$workdir/combined"
+
+    while IFS= read -r url; do
+        printf 'Downloading %s\n' "$url"
+        curl --fail --show-error --silent --location \
+            --retry 10 \
+            --retry-all-errors \
+            --connect-timeout 30 \
+            --max-time 300 \
+            "$url" \
+            -o "$workdir/download"
+        awk '
+            {
+                sub(/\r$/, "")
+                sub(/#.*/, "")
+            }
+            $1 == "0.0.0.0" && NF == 2 {
+                print "0.0.0.0 " $2
+            }
+        ' "$workdir/download" > "$workdir/parsed"
+        if [ ! -s "$workdir/parsed" ]; then
+            printf 'ERROR: No usable hosts entries from %s\n' "$url" >&2
+            exit 1
+        fi
+        cat "$workdir/parsed" >> "$workdir/combined"
+    done < "$workdir/sources"
+    rm -f "$workdir/download" "$workdir/parsed"
+    TMPDIR="$workdir" LC_ALL=C sort -u \
+        "$workdir/combined" > "$workdir/hosts"
+    test -s "$workdir/hosts"
+    count=$(wc -l < "$workdir/hosts")
+    mv -f "$workdir/hosts" /hosts/hosts
+    printf 'Updated /hosts/hosts: %s unique entries\n' "$count"
+)
+
+if [ "${1:-}" = "--update" ]; then
+    update_hosts
+    exit 0
+fi
+if ! /bin/sh "$0" --update; then
+    printf 'Initial update failed; keeping existing hosts file.\n' >&2
+fi
+
+exec /usr/local/bin/supercronic "$@"
 ```
+
+I have not included the tif list since its gigantic and my VPSes can't handle it. If you have more resources , then definitely go for it.
 
 You can look [here](https://github.com/StevenBlack/hosts) and [here](https://github.com/firehol/blocklist-ipsets) and [here](https://github.com/hagezi/dns-blocklists) for more lists to choose from.
 
 Finally, you can find the entire recursive resolver [here](https://github.com/terminaldweller/recursive_resolver).
-
-## A note on observability
-
-We mentioned it once and then never afterwards. We are running a compose file. It is trivial to have logging enabled. Since I view this as a public service, i leave the logging mechanism to the readers.
-But since we designed with observability in mind, it is fairly straightforward to collect and watch the logs.
 
 ## Resource Usage
 I've been running my instance on a VPS with 2GB of RAM and 2 CPU cores. You could probably get away with lower resources but you might be cutting it too close. I recommend the same loadout that I have.
@@ -558,12 +642,11 @@ Ideally pick something with both IPv4 and IPv6 connectivity.
 
 ## Future Improvements
 
-* At some point in the future, i would like to have DoH also pass through `dnsdist`. That way we will have a singular place to control rate-limits and such.
-* Maybe find a replacement for DNSCrypt-proxy, something that supports DoT or DoQ upstreams as well. DNSCrypt-proxy right now only supports DoH and ODoH upstreams(and DNSCrypt but we dont care abou't that one).
+* Maybe find a replacement for DNSCrypt-proxy, something that supports DoT or DoQ upstreams as well. DNSCrypt-proxy right now only supports DoH and ODoH upstreams(and DNSCrypt but we dont care about that one).
 
 <p>
-  <div class="timestamp">timestamp:1791646819</div>
-  <div class="version">version:1.4.0</div>
+  <div class="timestamp">timestamp:1793413127</div>
+  <div class="version">version:1.5.0</div>
   <div class="rsslink">https://blog.terminaldweller.com/rss/feed</div>
   <div class="originalurl">https://raw.githubusercontent.com/terminaldweller/blog/main/mds/arecursivednsserver.md</div>
 </p>
