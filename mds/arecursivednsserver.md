@@ -5,7 +5,7 @@ Our goals:
 - privacy: we want our DNS requests to only be known to the actual servers answering the DNS queries and nobody else in between (does not apply to privacy from the operator of this service)
 - anonymity: we dont want the DNS server answering our queries to know that we are who we are (does not apply to privacy from the operator of this service)
 - security: well we are hosting this on the internet presumably so ...
-- DoH, DoT, DoQ and DoH3
+- DoH, DoT, DoQ and DoH3. No plain-text DNS queries downstream. For our upstreams, unfortunately, there is no way to guarantee that the eventual authoritative query will be encrypted. Our immediate upstreams are, of course, encrypted. Just a caveat, but a caveat nonetheless.
 - observability: we want to have an easy way to have the logs available and/or sent elsewhere
 - filtering: we want to have the ability to filter based on readily available lists
 
@@ -20,18 +20,18 @@ this is going to be a bit long. You can find the repo that holds everything [her
 
 ## The Design
 
-Let's first address anonymity and privacy. We want the incoming traffic to our server to be encrypted coming in and going out(it's a recursive resolver). For incoming traffic we can choose between DoH, DoT and DoQ. There is not reason for us not to choose all three so we choose all three. DoH is nice. DoT is supported by systemd-resolved so you don't need anything else if you're running a systemd distro. We'll keep DoQ for future-proofing or something.
+Let's first address anonymity and privacy. We want the incoming traffic to our server to be encrypted coming in and going out(it's a recursive resolver). For incoming traffic we can choose between DoH, DoT and DoQ. There is no reason for us not to choose all three so we choose all three. DoH is nice. DoT is supported by systemd-resolved so you don't need anything else if you're running a systemd distro. We'll keep DoQ for future-proofing or something.
 We could benchmark DoQ vs DoT/DoH speeds and check whether there is a meaningful difference but since our upstream is going to go over tor, the significant chunk of the RTT will be tor so we'll leave that be for now.
 For the other end, so outgoing connections, we can do the same. We only send queries to servers which support some sort of encrypted DNS. That requires us to use a forwarder that allows us to do that.
-Like this, we can be sure at no point in the travel of the query, the query is visible to anyone other than the responding server.
-As for our outgoing transport, we will be sending all queries over tor. This will mean that our queries will be much slower(way slower, seriously!) but we gain anonymity. Needless to say, since we are forwarding all queries over tor, we will be forcing TCP-only queries so no UDP for us.
+
+As for our outgoing transport, we will be sending all queries over tor. This will mean that our queries will be much slower(way slower, seriously!) but we gain anonymity. Needless to say, since we are forwarding all queries over tor, we will be forcing TCP-only queries upstream so no upstream UDP for us. Downstream, as in, when receiving queries, we will accept encrypted UDP.
 We will also need some rate-limiting mechanism and security measures since this is going to be a server on the internet using components that are not exactly bind or knot levels of battle-tested.
 We will use docker as the runtime. Any OCI-compatible runtime will do, of course.
 
-For our DoH endpoint, we will be using a web application firewall to filter malicious http queries. If you've ever hosted some http service on the internets and have bothered to actually look at the logs, you now what i mean.
-For DoT and DoQ we will use powerDNS's [dnsdist](https://github.com/PowerDNS/pdns). We could have the [modsecurity crs nginx](https://github.com/coreruleset/modsecurity-crs-docker) instance(our web application firewall, waf) handle DoT but for DoQ we will not be able to do that since DoQ will be using UDP(its quic, remember?) and we will need something that understands the DoQ ALPN. Nginx cant do that so we use dnsdist. We will see in a bit that using dnsdist has some benefits as well.
+For our DoH endpoint, we will be using a web application firewall to filter malicious http queries. If you've ever hosted some http service on the internets and have bothered to actually look at the logs, you know what i mean.
+For DoT and DoQ we will use powerDNS's [dnsdist](https://github.com/PowerDNS/pdns). DoH and DoH3 will be sent here as well but after having gone through our WAF. We could have the [modsecurity crs nginx](https://github.com/coreruleset/modsecurity-crs-docker) instance(our web application firewall, waf) handle DoT but for DoQ we will not be able to do that since DoQ will be using UDP(its quic, remember?) and we will need something that understands the DoQ ALPN. Nginx cant do that so we use dnsdist. We will see in a bit that using dnsdist has some benefits as well.
 
-We will use [dnscrypt-proxy](https://github.com/DNSCrypt/dnscrypt-proxy) as our forwarder through tor. It can fulfill all our requirements: TCP-only queries, only encrypted upstreams, sends traffic through a socks5 proxy which makes sending over tor a cinch. Since all dnscrypt-proxy traffic will be going through tor, the initial startup time will be a little too long for comfort. So we will bindmount the cache directory for dnscrypt-proxy so after the first-time start we won't have to do another cold start again.
+We will use [dnscrypt-proxy](https://github.com/DNSCrypt/dnscrypt-proxy) as our forwarder through tor. It can fulfill all our requirements: TCP-only queries, only encrypted upstreams, sends traffic through a socks5 proxy which makes sending over tor a cinch. Since all dnscrypt-proxy traffic will be going through tor, the initial startup time will be a little too long for comfort. So we will bindmount the cache directory for dnscrypt-proxy so after the first-time start, we can avoid a fresh resolver-list download on every container recreation.
 
 Tor is tor. It's slow, circuits go down etc. so we will be running 3 tor containers behind a reverse proxy doing round robin to attempt to somewhat mitigate the fickleness of the tor network. You can also choose to use obfuscation for tor if that makes sense for you. VPN upstream transports are also possible. We will not explore them here but in some later posts in the future, we might get there.
 I2P doesn't have US gov backing so it has almost no exit nodes so we can't really pass through there.
@@ -40,25 +40,25 @@ That's pretty much it for the design part.
 The rest of the post will just be us talking about implementation details.
 
 We will also use [supercronic](https://github.com/aptible/supercronic) to update our filter lists that [CoreDNS](https://github.com/coredns/coredns) consumes.
-We will also leave the caching to Coredns. I experimented with both dnsdist and Coredns as the service in charge of caching. My best guess is that coredns's prefethcing makes a big difference in terms of responsiveness and believe me we need responsiveness when we are forwarding everything on TCP through tor(dnsdist does not support prefetching). If you decide to go with dnsdist as your cache, keep in mind that with DoH we also get EDNS which changes the query that dnsdist caches so the same query coming in through DoH and DoQ or DoT would be different. In other words, a DoH request will not result in it being cached for DoT or DoQ if that makes any sense. Those two groups essentially end up with their own cache groups.
+We will also leave the caching to Coredns. I experimented with both dnsdist and Coredns as the service in charge of caching. My best guess is that coredns's prefetching makes a big difference in terms of responsiveness and believe me we need responsiveness when we are forwarding everything on TCP through tor(dnsdist does not support prefetching). If you decide to go with dnsdist as your cache, keep in mind that queries with EDNS will have a different hash than the same query without EDNS so dnsdist caches those as different cache entries.
 
 The filtering and blocking will be handled mostly by CoreDNS. Supercronic will handle updating and merging the lists. Keep in mind that very big lists will require a lot of initial processing time and also a lot of memory(multiple gigabytes).
-Some part of the blocking will be handled by dnsdist since CoreDNS does not support outright blocking a domain and all its subdomains. Because of that, we will be using dnsdist to block certain domains. The reason for this is [this incident](https://citizenlab.ca/research/how-discover-tech-turned-targeted-ads-into-a-pipeline-for-spyware/). If you don't feel like reading that, the short version is that ad-blocking is no longer a privacy concern. It's a security concern.
+Some part of the blocking will be handled by dnsdist. Because of that, we will be using dnsdist to block certain domains. The reason for this is [this incident](https://citizenlab.ca/research/how-discover-tech-turned-targeted-ads-into-a-pipeline-for-spyware/). If you don't feel like reading that, the short version is that ad-blocking is no longer just a privacy concern. It's also a security concern.
 
 Let's talk about the networks a bit as well. Among our containers, the CoreDNS and DNSCrypt-proxy networks will have docker networks marked internal,e.g. `internal: true`, because first, in case of CoreDNS it does not need to talk to anything outside this compose file and for DNSCrypt-proxy, it will only communicate through tor. This way, it's safer. They won't leak because they can't, not because i think i set them up correctly. This is a safer design.
 
-All the endpoints are at standard locations, i.e. `:443` and `/dns-qeury` for DoH, and `:853` for DoT and DoQ. We do not serve non-encrypted DNS.
+All the endpoints are at standard locations, i.e. `:443` and `/dns-query` for DoH, and `:853` for DoT and DoQ. We do not serve non-encrypted DNS publicly.
 
-At the end, we will talk a little about what the local network side of things can look like or at least what mine looks like if you choose to host this on the internet.
+One important note regarding DNSSEC for this design. DNSSEC validation will be happening client-side and not  server-side(on this stack). Keep that in mind.
 
 ## Diagram
 
 That's the path our queries take through the system:
 
 ```txt
------      -----      ---------      ----------------      ---------      -----
-|DoH| ---> |WAF| ---> |CoreDNS| ---> |DNSCrypt-Proxy| ---> |HaProxy| ---> |Tor|
------      -----      ---------      ----------------      ---------      -----
+----------      -----      ---------       ---------      ----------------      ---------      -----
+|DoH/DoH3| ---> |WAF| ---> |dnsdist|  ---> |CoreDNS| ---> |DNSCrypt-Proxy| ---> |HaProxy| ---> |Tor|
+----------      -----      ---------       ---------      ----------------      ---------      -----
 
 -----      ---------      ---------      ----------------      ---------      -----
 |DoT| ---> |dnsdist| ---> |CoreDNS| ---> |DNSCrypt-Proxy| ---> |HaProxy| ---> |Tor|
@@ -72,7 +72,7 @@ The intakes are our waf and dnsdist. The default port for DoH is 443(duh!!!) and
 
 ## Intake
 
-The waf config is pretty straightforward. Its a normal reverse-proxy setting for nginx, with the added addition of us having to exempt our DoH URI since a valid DoH requests looks all kinds of bad to a waf.
+The waf config is pretty straightforward. Its a normal reverse-proxy setting for nginx, with the added addition of us having to exempt our DoH URI since a valid DoH request looks all kinds of bad to our WAF given its current config.
 
 ```nginx
 server {
@@ -85,6 +85,8 @@ server {
   if ($server_protocol !~* "^HTTP/(2|3)[.]0$") {
     return 444;
   }
+
+  add_header Alt-Svc 'h3=":443"; ma=86400' always;
 
   keepalive_timeout 60;
   charset utf-8;
@@ -106,36 +108,33 @@ server {
 
   fastcgi_hide_header X-Powered-By;
 
+  error_page 500 502 503 504 /50x.html;
   location = /50x.html {
       root   /usr/share/nginx/html;
   }
 
-  location /dns-query {
-  modsecurity_rules '
-    SecRuleEngine On
-    SecRuleRemoveById 920280 920420
-  ';
-    proxy_pass http://172.31.33.20:8053;
+  location = /dns-query {
+    grpc_pass grpc://172.31.33.9:8053;
+
+    modsecurity_rules '
+      SecRuleEngine On
+      SecRuleRemoveById 920280 920420
+    ';
+
+    grpc_set_header Host              $host;
+    grpc_set_header X-Real-IP         $remote_addr;
+    grpc_set_header X-Forwarded-For   $remote_addr;
+    grpc_set_header X-Forwarded-Proto $scheme;
   }
 }
 ```
 
-We already talked about the exemption rule we need to have for DoH on `/dns-query` otherwise our waf will kill all the valid DoH requests.
-```nginx
-modsecurity_rules '
-  SecRuleEngine On
-  SecRule REQUEST_URI "@streq /dns-query" "id:100001,phase:1,pass,nolog,ctl:ruleRemoveById=920420"
-';
-```
+For DoH to work we need to exempt two rules: `920280` and `920420`.
+We use `grpc_pass` here to forward DoH requests to dnsdist over HTTP/2; despite the directive’s name, the requests remain DoH and are not converted into gRPC. For further reading look [here](https://www.dnsdist.org/guides/dns-over-https.html#http-1-support) please.
+We will only answer to HTTP/2 and HTTP/3 for DoH and DoH3.
 
-I also added a strict http/2 enforcement snippet at the top:
-```nginx
-if ($server_protocol !~* "HTTP/2") {
-  return 444;
-}
-```
 
-[Http/1.1 has fundamental design flaws](https://www.youtube.com/watch?v=PUCyExOr3sE). There is no real reason or benefit for us to use it so we will be using http/2 for our incoming DoH requests.
+[Http/1.1 has fundamental design flaws](https://www.youtube.com/watch?v=PUCyExOr3sE). There is no real reason or benefit for us to use it so we will be using HTTP/2 and HTTP/3 for our incoming DoH requests.
 
 ```yaml
   waf:
@@ -163,7 +162,7 @@ if ($server_protocol !~* "HTTP/2") {
     volumes:
       - ./nginx.conf:/etc/nginx/conf.d/waf.conf:ro
     depends_on:
-      - coredns
+      - dnsdist
     environment:
       - MODSECURITY_RULE_ENGINE=On
       - BLOCKING_PARANOIA=1
@@ -191,13 +190,12 @@ Just a few things to keep in mind when we are using `runsc`:
 2. because `runsc` blocks access to the docker resolver, we won't have any DNS in the containers either
 
 For number 2, the supercronic container will be downloading and updating our block lists so it's going to need a DNS resolver along with the tor nodes. The rest of the containers dont need a DNS resolver.
-For inter-container connectivity, we will set static adresses and use those to reference a container.
+For inter-container connectivity, we will set static addresses and use those to reference a container.
 
 
 For our other ingestion point, dnsdist, we have:
 
 ```lua
--- vim: ft=lua
 -- vim: ft=lua
 infolog("CLIENT-IP-CHECK configuration loaded")
 setLocal("127.0.0.1:5300")
@@ -351,7 +349,7 @@ https://.:8053 dns://.:8054 {
     deploy:
       resources:
         limits:
-          memory: 128M
+          memory: 1G
     logging:
       driver: "json-file"
       options:
@@ -377,20 +375,17 @@ https://.:8053 dns://.:8054 {
 ```
 
 Coredns is our main forwarder. This is where we cache the queries as well as where we enforce the block lists(e.g. The hosts file that we are bind mounting).
-The two listeners are for DoH and Dot/DoQ respectively.
-Here we can talk about another reason why i chose coredns. In order to let our waf actually do its job, we are terminating tls for DoH on the waf to have be able to inspect everything but that leaves us with the trouble of having to find a DNS server implementation that does DoH without TLS. As I'm sure you can guess, coredns to the rescue.
 
 After Coredns, we have to hand off the requests to dnscrypt-proxy.
 
-Below is the options that we need. The rest of the options are really up to you. Also, we turn caching off here since we really dont need dnscrypt-proxy to cache because coredns is already caching the queries for us. We don't want to have to deal with double-caching weirdness.
+Below are the options that we need. The rest of the options are really up to you. Also, we turn caching off here since we really dont need dnscrypt-proxy to cache because coredns is already caching the queries for us. We don't want to have to deal with double-caching weirdness.
 For bootstrap resolvers, we will use tor's DNSPort so those will also pass through tor. Both networks that dnscrypt has, `dns` and `tor` will be marked internal, so this container cannot contact the outside world, i.e. We will not be leaking anything from dnscryptproxy.
-Finally, we will disable caching on dnscryptproxy since we want to handle caching on CoreDNS and want to avoid double-caching.
 
 ```toml
 cache = false
-dnscrypt_servers = true
+dnscrypt_servers = false
 doh_servers = true
-odoh_server = true
+odoh_servers = false
 require_dnssec = true
 require_nolog = true
 require_nofilter = true
@@ -398,10 +393,11 @@ proxy = 'socks5://172.31.66.66:9050'
 force_tcp = true
 listen_addresses = ['0.0.0.0:53']
 bootstrap_resolvers = ['172.31.66.10:9053', '172.31.66.11:9053', '172.31.66.12:9053']
-cache = false
+[sources.public-resolvers]
+cache_file = '/var/cache/dnscrypt-proxy/public-resolvers.md'
 ```
 
-Also, using ODoH here does not mean i have changed my stance on ODoH being a joke. It's simply that in this capacity ODoH servers work just like DoH servers without the extra trust-me-bruhs. They are encrypted upstreams so they work.
+The dnscrypt-proxy conf file is an excerpt. The full config would be too long to put here. You can look at it in the repo or just configure it the way you want. The excerpt includes the important bits.
 
 ```yaml
   dnscryptproxy:
@@ -426,6 +422,7 @@ Also, using ODoH here does not mean i have changed my stance on ODoH being a jok
     volumes:
       - ./dnscrypt-proxy-config.toml:/etc/dnscrypt-proxy/dnscrypt-proxy.toml:ro
       - ./resolv.conf:/etc/resolv.conf:ro
+      - ./dnscrypt-cache:/var/cache/dnscrypt-proxy
     depends_on:
       - haproxy
     command: ["--config", "/etc/dnscrypt-proxy/dnscrypt-proxy.toml"]
@@ -439,28 +436,52 @@ Also, using ODoH here does not mean i have changed my stance on ODoH being a jok
 
 ## Upstream Transport
 
-First up is our reverse-proxy, haproxy:
+First up is our reverse-proxy, haproxy.
+
+The only thing worth noting here is we try connecting to `1.1.1.1:443` through our tor circuits to make sure they are working. A backend is removed after 3 consecutive failures and restored after 2 consecutive successes.
 
 ```haproxy
 global
     maxconn 4096
+    log stdout format raw local0
 
 defaults
     log global
     mode tcp
     option tcplog
     option dontlognull
-    timeout connect 5000
-    timeout client 10000
-    timeout server 10000
+
+    timeout connect 5s
+    timeout client 60s
+    timeout server 60s
+    timeout check 30s
 
 listen socks5_rr_docker
     bind :9050
     mode tcp
     balance roundrobin
-    server server0 172.31.66.10:9050
-    server server1 172.31.66.11:9050
-    server server2 172.31.66.12:9050
+
+    option tcp-check
+    option log-health-checks
+
+    # Connect to the Tor SOCKS listener.
+    tcp-check connect
+
+    # SOCKS5 greeting: offer authentication method "no authentication".
+    tcp-check send-binary 050100
+    tcp-check expect min-recv 2 rbinary ^0500
+
+    # Ask Tor to connect to 1.1.1.1:443 through a circuit.
+    tcp-check send-binary 050100010101010101bb
+
+    # SOCKS5 reply: version 5, success, reserved byte 0.
+    tcp-check expect min-recv 3 rbinary ^050000
+
+    default-server inter 60s fall 3 rise 2
+
+    server server0 172.31.66.10:9050 check
+    server server1 172.31.66.11:9050 check
+    server server2 172.31.66.12:9050 check
 ```
 
 ```yaml
@@ -513,7 +534,7 @@ And our Tor instances:
     networks:
       tor:
         ipv4_address: 172.31.66.10
-      toregress:
+      tor_egress:
     volumes:
       - ./torrc:/etc/tor/torrc:ro
       - ./resolv.conf:/etc/resolv.conf:ro
@@ -526,16 +547,18 @@ And our Tor instances:
       - ALL
 ```
 
-We don't have any special requirements for tor besides the DNSPort that dnscryptproxy will use for its bootstrap resolver addresses. Just make sure that the ports is being served on `0.0.0.0` and not localhost. Besides that, i guess use bridges. Maybe.
+The other tor instances, tor2 and tor3 will have the exact same config, only a different IP address, so `172.31.66.11` and `172.31.66.12`.
+
+We don't have any special requirements for tor besides the DNSPort that dnscryptproxy will use for its bootstrap resolver addresses. Just make sure that the port is being served on `0.0.0.0` and not localhost. Besides that, i guess use bridges. Maybe.
 The `resolv.conf` file is a static one, containing a DNS server of your choosing. I'm using cloudflare's `1.1.1.1` because the chances of them blocking tor is lower, for very obvious reasons, might i add.
 
 ## Block Lists
 
 And the final piece. Our supercronic service just downloads a block list. You can choose whichever one you want. There are a ton of block lists all over the internet.
 Feel free to add more lists or just a different list.
-One thing to note here is that we are bind-mounting a directory and that directory is being shared by both supercronic and CoreDNS. This is because for a bind-mount, what the bind-mount is actualy watching is the inode. When we update a file, depending on how we do it, the inode might change, and so CoreDNS might not pick up the update since it's watching a totally different inode. By bind-mounting a directoy, we can stop worrying about all of that so even if the inode changes, we will still see the change.
+One thing to note here is that we are bind-mounting a directory and that directory is being shared by both supercronic and CoreDNS. This is because for a bind-mount, what the bind-mount is actually watching is the inode. When we update a file, depending on how we do it, the inode might change, and so CoreDNS might not pick up the update since it's watching a totally different inode. By bind-mounting a directory, we can stop worrying about all of that so even if the inode changes, we will still see the change.
 Also, because of the way we are handling hosts file updates, we will get a new inode every time we update. So in our case, we have to bind-mount the directory containing the file for CoreDNS.
-The CoreDNS `hosts` plugin detects the change withing its default reload time which is 5 seconds so we don't need to reload coredns on every hosts file update.
+The CoreDNS `hosts` plugin detects the change within its default reload time which is 5 seconds so we don't need to reload coredns on every hosts file update.
 
 ```yaml
   supercronic:
@@ -546,7 +569,7 @@ The CoreDNS `hosts` plugin detects the change withing its default reload time wh
     deploy:
       resources:
         limits:
-          memory: 128M
+          memory: 256M
     logging:
       driver: "json-file"
       options:
@@ -561,6 +584,8 @@ The CoreDNS `hosts` plugin detects the change withing its default reload time wh
       - ./crontab:/etc/crontab:ro
       - ./hosts:/hosts/:rw
       - ./resolv.conf:/etc/resolv.conf:ro
+    tmpfs:
+      - /tmp:nosuid,noexec,rw,size=32m
     restart: unless-stopped
     command: ["/etc/crontab"]
     runtime: runsc
@@ -636,6 +661,32 @@ You can look [here](https://github.com/StevenBlack/hosts) and [here](https://git
 
 Finally, you can find the entire recursive resolver [here](https://github.com/terminaldweller/recursive_resolver).
 
+### Network definitions
+
+```yaml
+networks:
+  frontend:
+    driver: bridge
+    enable_ipv6: true
+  dns:
+    internal: true
+    enable_ipv6: true
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.31.33.0/24
+  tor:
+    internal: true
+    enable_ipv6: true
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.31.66.0/24
+  tor_egress:
+    driver: bridge
+  nil:
+```
+
 ## Resource Usage
 I've been running my instance on a VPS with 2GB of RAM and 2 CPU cores. You could probably get away with lower resources but you might be cutting it too close. I recommend the same loadout that I have.
 Ideally pick something with both IPv4 and IPv6 connectivity.
@@ -645,8 +696,9 @@ Ideally pick something with both IPv4 and IPv6 connectivity.
 * Maybe find a replacement for DNSCrypt-proxy, something that supports DoT or DoQ upstreams as well. DNSCrypt-proxy right now only supports DoH and ODoH upstreams(and DNSCrypt but we dont care about that one).
 
 <p>
-  <div class="timestamp">timestamp:1793413127</div>
-  <div class="version">version:1.5.0</div>
+  <p> written by terminaldweller, proofread by an LLM</p>
+  <div class="timestamp">timestamp:1793456076</div>
+  <div class="version">version:1.6.0</div>
   <div class="rsslink">https://blog.terminaldweller.com/rss/feed</div>
   <div class="originalurl">https://raw.githubusercontent.com/terminaldweller/blog/main/mds/arecursivednsserver.md</div>
 </p>
