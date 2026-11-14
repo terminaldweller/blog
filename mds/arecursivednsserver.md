@@ -695,11 +695,11 @@ Ideally pick something with both IPv4 and IPv6 connectivity.
 
 * Maybe find a replacement for DNSCrypt-proxy, something that supports DoT or DoQ upstreams as well. DNSCrypt-proxy right now only supports DoH and ODoH upstreams(and DNSCrypt but we dont care about that one).
 
-<p>
+<div>
   <p> written by terminaldweller, proofread by an LLM</p>
-  <div class="timestamp">timestamp:1793456076</div>
-  <div class="version">version:1.6.0</div>
-  <div class="rsslink">https://blog.terminaldweller.com/rss/feed</div>
-  <div class="originalurl">https://raw.githubusercontent.com/terminaldweller/blog/main/mds/arecursivednsserver.md</div>
-</p>
+  <p class="timestamp">timestamp:1793456076</p>
+  <p class="version">version:1.6.0</p>
+  <p class="rsslink">https://blog.terminaldweller.com/rss/feed</p>
+  <p class="originalurl">https://raw.githubusercontent.com/terminaldweller/blog/main/mds/arecursivednsserver.md</p>
+</div>
 <br>
