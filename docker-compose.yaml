@@ -1,6 +1,6 @@
 services:
   nginx-crs:
-    image: waf
+    image: blog_waf
     build:
       context: .
       dockerfile: ./Dockerfile_waf
