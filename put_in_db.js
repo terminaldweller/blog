@@ -109,6 +109,14 @@ var blogs = [
     teaser: fs.readFileSync(path.join(__dirname) + "/mds/anauthoritativednsserver.txt"),
     keywords: ["dns","yggdrasil","dnsdist","knot"],
     lastUpdatedAt: Date.now(),
+  },
+  {
+    title: "Yggdrasil All the Things",
+    slug: "yggdrasil_all_the_things",
+    body: fs.readFileSync(path.join(__dirname) + "/mds/yggdrasilallthethings.md"),
+    teaser: fs.readFileSync(path.join(__dirname) + "/mds/yggdrasilallthethings.txt"),
+    keywords: ["yggdrasil","vxlan","openwrt","linux","freebsd"],
+    lastUpdatedAt: Date.now(),
   }
 ];
 
