@@ -277,6 +277,10 @@ uci commit firewall
 ```
 To test the forwarding rule, I took VXLAN down on one spoke and pinged another at another address on 192.168.100.0/24. The hub’s forward_lan reject counter went from zero to three, one for each probe. None of the probes appeared on br-overlay. The packets reached the hub over the physical LAN, and the hub refused to forward them onto the overlay.
 
+## Final Note and a Request
+
+In order to make my design work, I needed OPNsense to support ygg as well so i made a PR for a ygg plugin. Currently we need more people to upvote the plugin so as to show there are people who care about having an ygg plugin on OPNsense. You can find the PR [here](https://github.com/opnsense/plugins/pull/5906).
+
 <div>
   <p> written by terminaldweller, proofread by an LLM</p>
   <p class="timestamp">timestamp:1794444811</p>
