@@ -112,14 +112,14 @@ security concern.
 
 Let’s talk about the networks a bit as well. Among our containers, the
 CoreDNS and DNSCrypt-proxy networks will have docker networks marked
-internal,e.g. `+internal: true+`, because first, in case of CoreDNS it
+internal,e.g. `internal: true`, because first, in case of CoreDNS it
 does not need to talk to anything outside this compose file and for
 DNSCrypt-proxy, it will only communicate through tor. This way, it’s
 safer. They won’t leak because they can’t, not because i think i set
 them up correctly. This is a safer design.
 
-All the endpoints are at standard locations, i.e. `+:443+` and
-`+/dns-query+` for DoH, and `+:853+` for DoT and DoQ. We do not serve
+All the endpoints are at standard locations, i.e. `:443` and
+`/dns-query` for DoH, and `:853` for DoT and DoQ. We do not serve
 non-encrypted DNS publicly.
 
 One important note regarding DNSSEC for this design. DNSSEC validation
@@ -212,10 +212,10 @@ server {
 }
 ----
 
-For DoH to work we need to exempt two rules: `+920280+` and `+920420+`.
-We use `+grpc_pass+` here to forward DoH requests to dnsdist over
-HTTP/2; despite the directive’s name, the requests remain DoH and are
-not converted into gRPC. For further reading look
+For DoH to work we need to exempt two rules: `920280` and `920420`. We
+use `grpc++_++pass` here to forward DoH requests to dnsdist over HTTP/2;
+despite the directive’s name, the requests remain DoH and are not
+converted into gRPC. For further reading look
 https://www.dnsdist.org/guides/dns-over-https.html#http-1-support[here]
 please. We will only answer to HTTP/2 and HTTP/3 for DoH and DoH3.
 
@@ -272,12 +272,12 @@ will be using HTTP/2 and HTTP/3 for our incoming DoH requests.
       - NET_BIND_SERVICE
 ----
 
-We will be using gvisor’s `+runsc+` as our OCI runtime. We will do that
+We will be using gvisor’s `runsc` as our OCI runtime. We will do that
 for all containers. Just a few things to keep in mind when we are using
-`+runsc+`: 1. `+runsc+` will block access to the docker resolver so we
-won’t be able to use the container names as hostnames. 2. because
-`+runsc+` blocks access to the docker resolver, we won’t have any DNS in
-the containers either
+`runsc`: 1. `runsc` will block access to the docker resolver so we won’t
+be able to use the container names as hostnames. 2. because `runsc`
+blocks access to the docker resolver, we won’t have any DNS in the
+containers either
 
 For number 2, the supercronic container will be downloading and updating
 our block lists so it’s going to need a DNS resolver along with the tor
@@ -481,8 +481,8 @@ up to you. Also, we turn caching off here since we really dont need
 dnscrypt-proxy to cache because coredns is already caching the queries
 for us. We don’t want to have to deal with double-caching weirdness. For
 bootstrap resolvers, we will use tor’s DNSPort so those will also pass
-through tor. Both networks that dnscrypt has, `+dns+` and `+tor+` will
-be marked internal, so this container cannot contact the outside world,
+through tor. Both networks that dnscrypt has, `dns` and `tor` will be
+marked internal, so this container cannot contact the outside world,
 i.e. We will not be leaking anything from dnscryptproxy.
 
 [source,toml]
@@ -546,7 +546,7 @@ the way you want. The excerpt includes the important bits.
 
 First up is our reverse-proxy, haproxy.
 
-The only thing worth noting here is we try connecting to `+1.1.1.1:443+`
+The only thing worth noting here is we try connecting to `1.1.1.1:443`
 through our tor circuits to make sure they are working. A backend is
 removed after 3 consecutive failures and restored after 2 consecutive
 successes.
@@ -662,14 +662,14 @@ And our Tor instances:
 ----
 
 The other tor instances, tor2 and tor3 will have the exact same config,
-only a different IP address, so `+172.31.66.11+` and `+172.31.66.12+`.
+only a different IP address, so `172.31.66.11` and `172.31.66.12`.
 
 We don’t have any special requirements for tor besides the DNSPort that
 dnscryptproxy will use for its bootstrap resolver addresses. Just make
-sure that the port is being served on `+0.0.0.0+` and not localhost.
-Besides that, i guess use bridges. Maybe. The `+resolv.conf+` file is a
+sure that the port is being served on `0.0.0.0` and not localhost.
+Besides that, i guess use bridges. Maybe. The `resolv.conf` file is a
 static one, containing a DNS server of your choosing. I’m using
-cloudflare’s `+1.1.1.1+` because the chances of them blocking tor is
+cloudflare’s `1.1.1.1` because the chances of them blocking tor is
 lower, for very obvious reasons, might i add.
 
 === Block Lists
@@ -687,7 +687,7 @@ directory, we can stop worrying about all of that so even if the inode
 changes, we will still see the change. Also, because of the way we are
 handling hosts file updates, we will get a new inode every time we
 update. So in our case, we have to bind-mount the directory containing
-the file for CoreDNS. The CoreDNS `+hosts+` plugin detects the change
+the file for CoreDNS. The CoreDNS `hosts` plugin detects the change
 within its default reload time which is 5 seconds so we don’t need to
 reload coredns on every hosts file update.
 

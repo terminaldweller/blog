@@ -14,19 +14,19 @@ The general idea is this:
 * The web hook server has an IRC client that will send the message to
 the IRC channel
 
-=== security considerations
+==== security considerations
 
-==== SMS vs https://en.wikipedia.org/wiki/Rich_Communication_Services[RCS]
+===== SMS vs https://en.wikipedia.org/wiki/Rich_Communication_Services[RCS]
 
 For forwarding the SMS I get on my cellphone from my cellphone to the
 web hook server, i use
-https://github.com/bogkonstantin/android_income_sms_gateway_webhook[android_income_sms_gateway_webhook].
+https://github.com/bogkonstantin/android_income_sms_gateway_webhook[android++_++income++_++sms++_++gateway++_++webhook].
 This app does not support RCS(see
-https://github.com/bogkonstantin/android_income_sms_gateway_webhook/issues/46[#46]).
+https://github.com/bogkonstantin/android_income_sms_gateway_webhook/issues/46[++#++46]).
 For this to work, make sure your phone has RCS disabled unless you use
 another app that supports RCS.
 
-==== web hook server connection
+===== web hook server connection
 
 The app will be connecting to our web hook server. The ideal way I
 wanted to do this would be to connect to a VPN, only through which we
@@ -75,7 +75,7 @@ need to encode the client information into the security token so we’ll
 just rely on a bearer-token in the header for both authentication and
 authorization.
 
-==== Authentication and Authorization
+===== Authentication and Authorization
 
 In our case, the only resource we have is to be able to post anything on
 the endpoint so in our case, authentication and authorization will be
@@ -96,14 +96,14 @@ authorization header like so:
 As for the url, use your endpoint without using the username and passwor
 in the URI.
 
-=== Dev works
+==== Dev works
 
 You can find the finished code
 https://github.com/terminaldweller/sms-webhook[here].
 
 Here’s a brief explanation of what the code does: We launch the irc bot
 in a goroutine. The web hook server will only respond to POST requests
-on `+/sms+` after a successful basic http authentication. In our case
+on `/sms` after a successful basic http authentication. In our case
 there is no reason not to use a randomized username as well. So
 effectively we will have two secrets this way. You can create a new user
 in the pocketbase admin panel. Pocketbase comes with a default
@@ -114,7 +114,7 @@ attempts.
 * We dont fill out missing credentials for non-existant users to make
 timing attacks harder. Thats something we can do later.
 
-=== Deployment
+==== Deployment
 
 [source,nginx]
 ----

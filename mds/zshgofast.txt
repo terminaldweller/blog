@@ -39,14 +39,14 @@ If you say you care about your zsh prompt's performance then that means that you
 ----
 
 If you talk about performance, then you have to have benchmarks and
-profilers. `+zprof+` is built in.
+profilers. `zprof` is built in.
 
 === Plugin Precompilation
 
-zsh can compile zsh scripts using the builtin `+zcompile+` into
-wordcode. This will have the effect of having faster parsing. The way we
-use this to get a faster prompt is to explicitly ask zsh to compile
-certain chunky plugins(think your
+zsh can compile zsh scripts using the builtin `zcompile` into wordcode.
+This will have the effect of having faster parsing. The way we use this
+to get a faster prompt is to explicitly ask zsh to compile certain
+chunky plugins(think your
 https://github.com/zsh-users/zsh-syntax-highlighting[syntax
 highlighters] and
 https://github.com/zsh-users/zsh-autosuggestions[completion] plugins)
@@ -60,14 +60,14 @@ zcompile-many ~/.oh-my-zsh/custom/plugins/zsh-autosuggestions/{zsh-autosuggestio
 zcompile-many ~/zsh-async.git/v1.8.5/async.zsh
 ----
 
-You can read more about `+zcompile+` in `+man 1 zshall+`, under
-`+SHELL BUILTIN COMMANDS+`, under `+zcompile+`.
+You can read more about `zcompile` in `man 1 zshall`, under
+`SHELL BUILTIN COMMANDS`, under `zcompile`.
 
 === Caching
 
 ==== Eval Caching
 
-First we will talk about evalcaching: caching the results of `+eval+`s.
+First we will talk about evalcaching: caching the results of `eval`s.
 This is a thing because some heavier/older version managers use this to
 inject themselves into your shell and some of them just take too much
 time. For those kinds of plugins you can use
@@ -79,12 +79,12 @@ script, you can use it like so:
 _evalcache rbenv init -
 ----
 
-We basically just swap out all instances of `+eval+` with
-`+_evalcache+`.
+We basically just swap out all instances of `eval` with
+`++_++evalcache`.
 
 Admittedly, this is very limited in scope and it has no smart way of
-redoing the cache. A function is provided, `+_evalcache_clear+`, which
-will clear the cache, which in turn will result in the cache being
+redoing the cache. A function is provided, `++_++evalcache++_++clear`,
+which will clear the cache, which in turn will result in the cache being
 regenerated.
 
 ==== Ye Old Result Caching
@@ -123,11 +123,11 @@ caching_function() {
 Our function has two arguments:
 
 * The first arg tells it where to store the cache. I keep mine under
-`+/tmp+`.
+`/tmp`.
 * The second is the amount of time the cache result will be valid for.
 
 The function will check the last time the file was updated and compare
-that using the `+CACHE_TIME+` var and the current time. If the cache
+that using the `CACHE++_++TIME` var and the current time. If the cache
 value is new enough, we just return the cache value and we are done. If
 the cache is old, we run the function that generates the result, update
 the cache and return the new result.
@@ -178,9 +178,10 @@ _async_dcpr_start() {
 
 The start function has nothing special in it. We just register an async
 worker and then register a callback function that will be called when
-the runner returns. Please do note that `+async_register_callback+` will
-require two arguments, the name of the async runner and the name of our
-callback function. Next we will define our callback function:
+the runner returns. Please do note that
+`async++_++register++_++callback` will require two arguments, the name
+of the async runner and the name of our callback function. Next we will
+define our callback function:
 
 [source,zsh]
 ----
@@ -207,7 +208,7 @@ _async_dcpr_info_done() {
 The callback functions gets 6 arguments(copied from
 https://github.com/mafredri/zsh-async/blob/main/README.md[here]):
 
-* $1 job name, e.g. the function passed to async_job
+* $1 job name, e.g. the function passed to async++_++job
 * $2 return code
 ** Returns -1 if return code is missing, this should never happen, if it
 does, you have likely run into a bug. Please open a new issue with a
@@ -234,30 +235,30 @@ it, you end up in a loop. This is essentially my version of having the
 async job "`failing loudly`".
 
 The third part is where we assign the stdout that our function,
-`+docker_compose_running_pwd+`, made to a "`global`" variable. This
-variable,`+dcpr_info_msg+`, is the variable that we will use in our
-prompt.
+`docker++_++compose++_++running++_++pwd`, made to a "`global`" variable.
+This variable,`dcpr++_++info++_++msg`, is the variable that we will use
+in our prompt.
 
 The fourth part is the most important part. The first condition checks
 for an empty buffer. If the buffer is not empty, it means we have more
 async jobs that have finished and are waiting for their turn, in which
 case it will not update the prompt. If, however the prompt buffer is
-empty, then we will `+set+` and `+reset+` the prompt to get an updated
+empty, then we will `set` and `reset` the prompt to get an updated
 prompt displayed when the buffer is empty.
 
 This is ideal, because, first and foremost, the library’s documentation
-tells us to do that to avoid having `+zle+` ending up in a weird state.
+tells us to do that to avoid having `zle` ending up in a weird state.
 The other reason would be to avoid unnecessary zle resets to cut down on
 needless flickering and to save us some CPU cycles.
 
-`+set-prompt+` is a function that I use to set the actual prompt. You
-may not need to call that or whatever equivalent that you have. In my
-case, I have to do it since my prompt lies on the fancier side of
-prompts and a change in the amount of characters in the prompts(because
-an async function is providing its output after the initial prompt
-display) will need to be taken into account so that’s why i run the
-prompt after everything(all the async functions) has returned, so that
-the final character lengths are known and correct.
+`set-prompt` is a function that I use to set the actual prompt. You may
+not need to call that or whatever equivalent that you have. In my case,
+I have to do it since my prompt lies on the fancier side of prompts and
+a change in the amount of characters in the prompts(because an async
+function is providing its output after the initial prompt display) will
+need to be taken into account so that’s why i run the prompt after
+everything(all the async functions) has returned, so that the final
+character lengths are known and correct.
 
 In the next section, we simply call the init function of the library and
 then call our own start function after that:
@@ -269,16 +270,16 @@ _async_dcpr_start
 ----
 
 In this section we add our async job to the precmd hook for zsh so that
-our async job runs on the precmd hook on every prompt. The `+precmd+`
-hook is executed before the prompt is displayed. Also please do note
-that this is where we actually tell the async runner what function to
+our async job runs on the precmd hook on every prompt. The `precmd` hook
+is executed before the prompt is displayed. Also please do note that
+this is where we actually tell the async runner what function to
 actually run. Moreover, this is where we pass any arguments that may or
 may not be needed by the said function. Do keep in mind that the async
 execution environment our function will run in is not the same as the
 one your shell prompt will be run in. This means that env vars will not
 carry over. In our example our docker compose function cannot get the
-current working directory by just accessing the `+$PWD+` env var so we
-will have to pass `+$PWD+` to it as a function argument manually.
+current working directory by just accessing the `$PWD` env var so we
+will have to pass `$PWD` to it as a function argument manually.
 
 [source,zsh]
 ----

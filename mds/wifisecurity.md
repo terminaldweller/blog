@@ -1,5 +1,660 @@
 # WiFi Security
 
-Before we begin, i will be talking about implementing and configuring everything on openwrt. The concepts however are universal and be applied to others as well.
+Let's talk a bit about hardening wifi. My starting point was WPA2 with PSK. No 802.11w support because of hardware limitations. I was using a WRT3200ACM which unfortunately is limited to wifi 5 plus no 802.11w support.
+No 802.11w means we are leaving ourselves open to unauthenticated management frames, including but not limited to, deauthentication and disassociation frames. Not fun.
+Now to be fair, my progression was WPA2-PSK -> WPA2-EAP-TLS -> WPA3-EAP-TLS -> WPA3-EAP-TLS suite b 192bit.
+For our WPA3-EAP-TLS profile, we went with TLS-only, min TLS version of 1.3 and suite b 192bit. Please note that PMF (802.11w) is mandatory with WPA3, even though OpenWrt's LuCI seems to let you disable it. If your hardware and driver support PMF, keep it enabled regardless of whether you use WPA2 or WPA3. It's a significant security control.
+Now with EAP-TLS, and a properly set up local CA(step-ca in my case) plus a RADIUS server(FreeRADIUS in my case) we perform mTLS and strict server SAN matching, we mitigate certain evil twin attacks.
+Also in my case, services run on the "service layer", an overlay network consisting of VXLAN tunnels that use Yggdrasil as their transport. Every node on my local network runs Yggdrasil, so encryption starts at the originating node itself. Our VXLAN topology is hub and spoke, with the hub terminating the individual tunnels and forwarding the inner Ethernet frames between spokes. This was, if you remember, intentional since we wanted an enforcement point for implementing ACLs.
 
-Right. So first lets talk about wap, wps and wpa.
+Further down we will look at these from gengstah's blog and the original airsnitch paper and implement security controls to mitigate them as well. We will add per-client-unique GTKs and client isolation. And finally test those security controls using [airsnitch](https://github.com/vanhoefm/airsnitch).
+
+* [Documentation and Warnings](https://gengstah.github.io/wiki/defenses/documentation/)
+* [Abusing GTK](https://gengstah.github.io/wiki/attacks/abusing-gtk/)
+* [Router-side ARP defenses don’t catch what they don’t see](https://gengstah.github.io/posts/2026/05/arp-over-gtk/)
+
+So let's talk about which attacks we are open to and which security controls mitigate which.
+At this stage, we assume that the attacker has neither compromised a legitimate node on the WiFi network nor obtained valid credentials to join it.
+
+## WPA2-PSK
+
+WPA2-PSK has nothing to do with 802.11w but in my case due to hardware limitations I couldn't enable 802.11w so what attacks are we open to?
+Without 802.11w, robust management frames, including deauthentication and disassociation frames, lack cryptographic protection so any rogue AP can impersonate the actual AP, send us deauthentication and/or disassociation frames, have us do the 4-way handshake and then try to capture the 4-way handshake and use the captured cryptographic material to perform an offline dictionary or brute-force attack against the passphrase. The PSK passphrase has a maximum length of 63 characters which if you are using something that long, bless your heart, you are doing good. Brute-forcing something that long, assuming it's a proper random string, will be beyond most adversaries.
+Assuming your PSK is secure, lack of 802.11w leaves us open to DoS attacks by way of sending unauthenticated deauth and disassociation frames.
+With WPA2-PSK, both the client and the AP demonstrate possession of shared key material. The problem is that this does not establish an independent identity for the AP. Any party possessing the PSK can potentially impersonate the legitimate AP.
+Another downside with PSK is that all clients share the same PSK. If we need to change the PSK for whatever reason, all clients will need to be notified and updated of the change. The situation is less than ideal. However, PPSK can solve this specific problem by allowing us to assign a unique PSK to each client, optionally using a RADIUS server.
+
+## WPA2-EAP-TLS
+
+First, we are specifically talking about EAP-TLS and not the other forms of EAP. With EAP-TLS, the authenticating server and the client authenticate mutually(mTLS). Now there is a bit of a detail here since we try to authenticate to the AP, and the AP relays our EAP messages over to the RADIUS server and the RADIUS server authenticates us and the client in turn, mutually authenticates the RADIUS server and not the AP.
+In our WiFi deployment, we use 802.1X for port-based network access control, with EAP messages transported between the supplicant and the authenticator using EAPOL. For our specific TLS scenario, where mTLS happens, the client validates the server's certificate chain against its trusted CA and checks the certificate's SAN against the expected server identity before authenticating itself to the RADIUS server.
+In our deployment, the AP and RADIUS server share a secret. This prevents an unauthorized AP without that secret from legitimately acting as a RADIUS client and obtaining the resulting keying material. This is not, however, a universal defense against transparent relay attacks. Even if an attacker manages to relay EAP-TLS messages, the client's private key never leaves the client, and successful EAP authentication alone does not give the rogue AP the keying material necessary to establish an independent encrypted connection.
+A benefit of using EAP-TLS is the fact that like PPSK and unlike PSK, each client gets their own set of creds and so if/when we need to change that set of creds we can just do so for the ones that need to be changed out and not every single client. Also, one set of leaked-creds means one set of leaked-creds. We can revoke the compromised client certificate and issue a new certificate and key pair without affecting the other clients, provided that our RADIUS server enforces certificate revocation.
+We are still not using mandatory 802.11w so we are still susceptible to the rogue AP sending us unauthenticated deauth/disassociation frames. We no longer rely on a password-based authentication mechanism, so the conventional offline dictionary attack against WPA2-PSK handshake material is no longer applicable.
+Keep in mind that due to the nature of WiFi, even with 802.11w enabled, a rogue AP with a more powerful transmission, can just wait for a legitimate deauth/disassociation. In the case of WPA2-PSK or WPA3-SAE, authentication is based on possession of a shared secret. Even though both parties authenticate cryptographically, a party possessing that shared secret can potentially impersonate the legitimate AP. With EAP-TLS, we instead authenticate against independently provisioned X.509 identities.
+
+## WPA3-EAP-TLS
+
+We finally have mandatory 802.11w. We can now mitigate unauthenticated deauth/disassociation frames. But please keep in mind that it would still leave us open to a rogue AP transmitting a stronger signal. Under these assumptions, a conventional evil twin attack becomes considerably more difficult, and an attacker without valid credentials is more likely to be able to disrupt our connectivity than establish a trusted connection with our clients. The assumption is that we don't have more than one WiFi profile and that that profile has no fallbacks or downgrades. In other words, the device only has one WiFi connection profile, and that connection profile requires WPA3-EAP-TLS with a minimum TLS version of v1.3 enforced by the RADIUS server and the client, with no fallback EAP auth methods enforced again by both sides with strict RADIUS server SAN checking for the X.509 certificate provided by the RADIUS server.
+At this point, two particularly important remaining risks are misconfiguration and compromise of our PKI, including the root CA, intermediate CA or RADIUS server's private key.
+
+## WPA3-EAP-TLS Suite-B 192-bit
+
+WPA3-Enterprise 192-bit mode imposes stricter cryptographic requirements, including GCMP-256 for wireless data protection and BIP-GMAC-256 for group management frame protection. In my EAP-TLS deployment, we use ECDSA P-384 certificates, ECDHE P-384 and TLS_AES_256_GCM_SHA384 with TLS 1.3.
+
+Ordinary WPA3-Enterprise with EAP-TLS is already a strong configuration. The 192-bit mode is an additional hardening measure. You can skip this to be honest, but I went for it.
+
+Ok. So far all we have done was assume that the attacker is a rogue AP and that the attacker has no creds so they can't join our network. That is not always the case. Now let's talk about how we can mitigate some risks in a situation where we have a rogue node(or a compromised node) joining the network over WiFi with legitimate creds.
+
+## Client isolation and AirSnitch
+
+The obvious starting point here is client isolation. We want clients to be able to communicate with the rest of the network as permitted by our firewall policy but not necessarily with other clients connected to the same AP.
+
+The problem is that client isolation is not a standardized security mechanism. Different vendors implement it differently, and enabling client isolation at one layer of the network stack does not necessarily enforce isolation at the other layers.
+
+This brings us to a particularly interesting paper published at NDSS 2026:
+
+[AirSnitch: Demystifying and Breaking Client Isolation in Wi-Fi Networks](https://www.ndss-symposium.org/wp-content/uploads/2026-f1282-paper.pdf).
+
+The paper looks at client isolation from three different perspectives:
+
+- The WiFi encryption and key management layer.
+- The Layer 2 switching layer.
+- The Layer 3 routing layer.
+
+The researchers found that every device they tested was susceptible to at least one of their attacks, including enterprise-grade equipment.
+
+Interestingly enough, OpenWrt and DD-WRT performed relatively well compared to the other devices tested.
+
+Looking at Tables II and III of the paper, we get the following results for OpenWrt 24.10:
+
+| Attack | Successful | Blocked |
+|---|---:|---:|
+| Direct L2 forwarding | 1 | 3 |
+| Abusing GTK | 2 | 0 |
+| Gateway bouncing | 1 | 3 |
+| Downlink port stealing | 0 | 4 |
+| Uplink port stealing | 0 | 4 |
+| Total | 4 | 14 |
+
+OpenWrt had the best aggregate result if we assign equal weight to all the tested scenarios. Of particular interest is the fact that none of the eight traffic interception scenarios in Table III succeeded against the tested OpenWrt configuration.
+
+Now, the other interesting thing about OpenWrt and DD-WRT is that we have access to their source code, although certain components, particularly wireless firmware, can still be proprietary.
+
+With OpenWrt, the security controls provided out of the box are not necessarily the ceiling of what we can achieve. We can change the configuration, introduce our own security controls and, if necessary, modify the software itself.
+
+So let's see how much further we can take OpenWrt.
+
+## Our test environment
+
+The following tests were conducted using an OpenWrt One as the AP.
+
+Please note that the actual gateway in this configuration was a separate OpenWrt device. The OpenWrt One was acting as an AP, bridging wireless clients onto the local network. DHCP, DNS and routing were handled separately.
+
+Our topology at the time was essentially this:
+
+```text
+                  Default Gateway
+                   192.168.1.1
+                        |
+                    Wired LAN
+                        |
+                   OpenWrt One
+                     br-lan
+                    /      \
+               2.4 GHz    5 GHz
+                  |          |
+              Clients     Clients
+```
+
+For testing purposes, we used two separate 2.4 GHz USB WiFi adapters.
+
+The interfaces were:
+
+```text
+wlp0s20f0u1
+wlp0s20f0u6
+```
+
+One interface acted as the victim and the other as the malicious client.
+
+We performed the AirSnitch tests against the 2.4 GHz PSK-based BSS. Although the relevant security controls were implemented on both radios, the results should not be interpreted as independent experimental validation of the 5 GHz WPA3-Enterprise BSS.
+
+We will look at the following:
+
+- Shared GTKs.
+- Uplink port stealing.
+- Broadcast reflection.
+- Gateway bouncing.
+
+For these tests, we assume the malicious client has valid credentials to join the WiFi network.
+
+## PTKs and GTKs
+
+Before we get to the tests, let's talk about two different keys used in WiFi:
+
+- PTK (Pairwise Transient Key).
+- GTK (Group Temporal Key).
+
+The PTK contains the key material used to protect unicast traffic between the AP and an individual associated station. The GTK, on the other hand, is used to protect broadcast and multicast traffic transmitted by the AP. Normally, the GTK is shared amongst the clients associated with the same BSS.
+
+Now think about this for a second. We went through all the trouble of setting up our own CA, RADIUS server, individual X.509 certificates, mTLS, strict SAN checking and WPA3-EAP-TLS with Suite-B 192-bit security. Yet we can still end up with a symmetric encryption key shared between clients that we don't necessarily trust. It doesn't matter how secure our encryption algorithm is if the malicious client legitimately has the key. This is where the GTK abuse attacks described in the AirSnitch paper come into play.
+
+## Abusing GTK
+
+Gengstah has a write-up on this:
+
+[Abusing GTK](https://gengstah.github.io/wiki/attacks/abusing-gtk/)
+
+And another one which addresses the problem that originally got me interested in all of this:
+
+[Router-side ARP defenses don’t catch what they don’t see](https://gengstah.github.io/posts/2026/05/arp-over-gtk/)
+
+My original objective was to mitigate ARP cache poisoning on my local network. Naturally, I started looking into DHCP snooping and Dynamic ARP Inspection(DAI) and how we could implement equivalent security controls using OpenWrt and nftables.
+
+The problem with that approach is that we are assuming the malicious traffic actually traverses the AP or the router. An authenticated malicious client possessing the shared GTK can construct group-encrypted frames impersonating the AP. If the victim accepts these frames directly over the air, our firewall doesn't even get to see them. So we can have perfectly functional ARP inspection rules on the router, and the malicious frame can still reach the victim without ever traversing those rules.
+
+Not fun.
+
+We still want DHCP snooping and DAI, but before we do any of that, let's address the shared GTK problem.
+
+## Per-station virtual interfaces
+
+One of the things that I find particularly interesting about the AirSnitch paper is that it doesn't explicitly evaluate OpenWrt's `per_sta_vif` option.
+[OpenWrt has exposed this option since January 2021](https://lists.openwrt.org/pipermail/openwrt-devel/2021-January/033291.html), well before the publication of AirSnitch. The idea is to create a separate virtual interface (VIF) for each station associated with the AP. Hostapd also supports per-station group keying through this mechanism.
+The hostapd configuration documentation describes the option as follows:
+
+```ini
+# Per-STA AP_VLAN interface
+# This implies per-station group keying and ebtables
+# filtering of inter-STA traffic (when passed through
+# the AP).
+```
+
+There are two things of interest to us here:
+
+- Individual GTKs instead of a GTK shared between all associated stations.
+- Individual virtual interfaces that we can use as enforcement points at the bridge layer.
+
+The second one will become particularly useful when we start implementing additional nftables rules. The other interesting thing about this option is that the authors of the AirSnitch paper themselves discuss per-client group keys and individual isolation domains in the defense section of the paper. I would have liked to see an explicit evaluation of `per_sta_vif` in their OpenWrt test configuration. But alas, life's not fair.
+
+Interestingly enough, the OpenWrt configuration tested in the paper was not susceptible to uplink port stealing, whereas our initial configuration was. Our topology differs from their test environment, particularly because our AP and default gateway are separate devices. This is a possible explanation for the difference, although I did not attempt to reproduce their exact configuration.
+
+### Hardware support
+
+The first thing we need to do is check whether our hardware and driver support AP/VLAN interfaces. In my case, we were using an OpenWrt One. The following is an excerpt from the actual terminal output:
+
+```text
+root@OpenWrt:~# iw phy phy0 info | grep -A15 'Supported interface modes'
+        Supported interface modes:
+                 * IBSS
+                 * managed
+                 * AP
+                 * AP/VLAN
+                 * monitor
+                 * mesh point
+                 * P2P-client
+                 * P2P-GO
+
+root@OpenWrt:~# iw phy phy1 info | grep -A15 'Supported interface modes'
+        Supported interface modes:
+                 * IBSS
+                 * managed
+                 * AP
+                 * AP/VLAN
+                 * monitor
+                 * mesh point
+                 * P2P-client
+                 * P2P-GO
+```
+
+Good. Both radios support AP/VLAN interfaces.
+
+### Enabling client isolation and per-station VIFs
+
+We started with the 2.4 GHz radio.
+
+```sh
+uci set wireless.default_radio0.isolate='1'
+uci set wireless.default_radio0.per_sta_vif='1'
+uci commit wireless
+wifi reload
+```
+
+Do note that the OpenWrt UCI option is called `isolate`, whereas the resulting hostapd option is called `ap_isolate`.
+
+We then inspected the interfaces using:
+
+```sh
+iw dev
+```
+
+We can see individual AP/VLAN interfaces being created for the associated clients:
+
+```text
+phy0-ap0.4096
+phy0-ap0.4097
+phy0-ap0.4098
+phy0-ap0.4099
+phy0-ap0.4100
+```
+
+Now let's have a look at the bridge forwarding database (FDB).
+
+We can inspect the FDB:
+
+```sh
+bridge fdb show br br-lan | grep 'phy0-ap0\.'
+```
+
+The following is an excerpt from the actual output with the client MAC addresses redacted:
+
+```text
+<CLIENT-1-MAC> dev phy0-ap0.4096 master br-lan
+<CLIENT-2-MAC> dev phy0-ap0.4097 master br-lan
+<CLIENT-3-MAC> dev phy0-ap0.4098 master br-lan
+<CLIENT-4-MAC> dev phy0-ap0.4099 master br-lan
+<CLIENT-5-MAC> dev phy0-ap0.4100 master br-lan
+```
+
+Instead of having all of our wireless stations behind one bridge port, we now have individual interfaces associated with individual stations.
+
+Conceptually, this looks something like this:
+
+```text
+                        br-lan
+                           |
+        +------------------+------------------+
+        |                  |                  |
+ phy0-ap0.4096      phy0-ap0.4097      phy0-ap0.4098
+        |                  |                  |
+     Client A           Client B           Client C
+```
+
+This is particularly useful because we can now write nftables rules which match traffic coming from the individual station interfaces. Keep in mind that these are still ports on the same bridge. Creating individual interfaces does not, by itself, create completely independent network segments. We subsequently enabled the same options on the 5 GHz radio:
+
+```sh
+uci set wireless.default_radio1.isolate='1'
+uci set wireless.default_radio1.per_sta_vif='1'
+uci commit wireless
+wifi reload
+```
+
+So far so good. But have we actually mitigated GTK abuse? We have to test.
+
+## Testing per-station GTKs
+
+For testing, we use [AirSnitch](https://github.com/vanhoefm/airsnitch). One thing to keep in mind when using AirSnitch is that you don't want NetworkManager or another network management service interfering with the interfaces while AirSnitch is trying to manage them.
+The test we used was `--check-gtk-shared`, with both stations associated with the same BSS.
+
+```text
+Victim GTK != Attacker GTK
+```
+
+So we have experimentally verified that the two stations associated with the same 2.4 GHz BSS received different GTKs with `per_sta_vif` enabled.
+
+Our configuration now provides the following:
+
+| Component | Allocation |
+|---|---|
+| PTK | Per station |
+| GTK | Per station, verified on 2.4 GHz |
+| AP/VLAN interface | Per station, verified on both radios |
+| AP client isolation | Enabled on both radios |
+
+This is quite a bit better than conventional client isolation.
+
+There are still a couple of things we haven't verified, however:
+
+- Whether GTK separation is maintained after group-key rekeying.
+- Whether IGTKs are also separated.
+- Whether the 5 GHz BSS produces the same experimental result.
+
+The 5 GHz configuration and virtual interfaces were verified, but I didn't have two available 5GHz USB WiFi adapters at the time to repeat the test independently. So are we done? No. We have addressed the shared group-key problem, but traffic that actually traverses the AP is a different matter.
+
+## Testing the remaining client isolation mechanisms
+
+With both `ap_isolate` and `per_sta_vif` enabled, we continued testing the AP.
+
+```text
+ok c2c-ip and c2c-broadcast are both allowed unfortunately
+```
+
+```text
+ok. unfortunately, uplink port stealing is successful
+```
+
+In other words, despite having individual station interfaces, individual GTKs and AP client isolation, three additional client isolation bypasses remained possible in our configuration.
+
+## Uplink port stealing
+
+A bridge maintains an FDB that maps MAC addresses to bridge ports. When it receives an Ethernet frame, it uses the FDB to determine where the frame should be forwarded. The problem identified in the AirSnitch paper is that the identity of a station at the WiFi layer is not necessarily bound consistently to its identity at the switching layer. An authenticated malicious station can potentially cause traffic belonging to another network device to be redirected to the wrong bridge port. In the uplink port-stealing test we performed, the device being impersonated was the default gateway. Normally, the forwarding entry associated with the gateway belongs to the wired uplink. We want to prevent a wireless station from causing the gateway's identity to become associated with a wireless station interface instead.
+
+### Infrastructure MAC protection
+
+In my case, the OpenWrt One wasn't the gateway. So we first needed to identify the actual gateway's MAC address. This is the original output from the AP:
+
+```text
+root@OpenWrt:/etc/config# ip neigh show 192.168.1.1
+192.168.1.1 dev br-lan lladdr 30:23:03:dd:69:b0 REACHABLE
+```
+
+We then added the gateway's MAC address to the wireless MAC denylist on both radios. The relevant wireless configuration is:
+
+```ini
+option macfilter 'deny'
+list maclist '30:23:03:dd:69:b0'
+```
+
+Keep in mind that we are not using MAC filtering as a means of authenticating wireless clients. We already have authentication mechanisms for that. We are using it to reserve a known infrastructure identity and prevent a wireless client from associating with the AP while claiming that identity. There is no legitimate reason for my wired default gateway to suddenly appear as an associated wireless station on this BSS. The same principle can be applied to other infrastructure MAC addresses, assuming we know that those devices are not supposed to associate as wireless clients.
+
+Think of it like this. Our network has an expected state. Part of the state is that certain infrastructure devices (gateway, DNS server, DHCP server, NTP server, SSO server, etc.) should never appear as associated wireless clients. Those nodes have an expected place in the network topology. A wireless station interface is not it. We are simply enforcing that invariant.
+
+### Retesting uplink port stealing
+
+After applying the denylist, we repeat the AirSnitch uplink port-stealing test. Now, the victim successfully associates with the AP and obtains its IP address.
+
+```text
+[12:49:25] Set wlp0s20f0u1 => 192.168.1.211/24, gw 192.168.1.1
+[12:49:25] DHCP ACK: Got IP address 192.168.1.211/[REDACTED] with router at 192.168.1.1/30:23:03:dd:69:b0.
+```
+
+The second station, however, repeatedly received authentication rejection events:
+
+```text
+wlp0s20f0u6: CTRL-EVENT-AUTH-REJECT [REDACTED] auth_type=0 auth_transaction=2 status_code=1
+wlp0s20f0u6: CTRL-EVENT-AUTH-REJECT [REDACTED] auth_type=0 auth_transaction=2 status_code=1
+wlp0s20f0u6: CTRL-EVENT-AUTH-REJECT [REDACTED] auth_type=0 auth_transaction=2 status_code=1
+```
+
+Eventually, the test timed out.
+Normally, a test timing out is not enough evidence to conclude that a vulnerability has been mitigated. However, in this particular case, rejecting association using the infrastructure MAC address was the intended behavior of our security control. The legitimate victim could connect. The second station could not associate using the prohibited identity. So we were able to mitigate the tested uplink port-stealing scenario at the association boundary. Do keep in mind that this is not a general solution to every possible port-stealing scenario. We have protected the known infrastructure MAC address. We have not implemented a comprehensive mechanism that binds every authenticated station to a unique permitted MAC address throughout the entire network stack.
+
+## Broadcast reflection
+
+Now let's look at broadcast reflection. We already dealt with the shared GTK problem, so a client no longer possesses the same GTK as the other clients on the tested BSS. However, what if the malicious traffic is forwarded by the legitimate AP itself? In this scenario, we don't necessarily need to know another client's GTK. The AP is doing the encryption when it forwards the traffic. This is another example of why cryptographic isolation and forwarding isolation are two different things. We need to implement a forwarding policy that prevents this behavior.
+
+### nftables bridge filtering
+
+Since we have enabled `per_sta_vif`, we have individual virtual interfaces that can be used as enforcement points. OpenWrt uses nftables through firewall4, or `fw4`. Normally, the firewall rules that most people interact with through LuCI belong to the `inet fw4` table. However, we want to inspect traffic traversing a Linux bridge, so we are going to make use of the nftables `bridge` family.
+
+Keep in mind that depending on your OpenWrt installation, you may need to install kmod-nft-bridge to enable nftables bridge-family support. We create our own bridge-family nftables table named `wifi_isolation`. We are going to implement filtering in the bridge prerouting hook.
+
+```sh
+nft -f - <<'EOF'
+table bridge wifi_isolation {
+    chain prerouting {
+        type filter hook prerouting priority -300;
+        policy accept;
+
+        iifname "phy0-ap0.*" ether daddr ff:ff:ff:ff:ff:ff ip daddr 192.168.1.0/24 counter drop
+        iifname "phy1-ap0.*" ether daddr ff:ff:ff:ff:ff:ff ip daddr 192.168.1.0/24 counter drop
+    }
+}
+EOF
+```
+
+The first two rules match traffic coming from the dynamically created per-station interfaces on the two radios and discard inappropriate IPv4 traffic carried in Ethernet broadcast frames. Please note that we are using wildcard interface matching:
+
+```text
+phy0-ap0.*
+phy1-ap0.*
+```
+
+This is important because the per-station interfaces are created dynamically and their numerical suffixes are not something we want to hardcode. Our filtering policy is specific to our network's IPv4 subnet, `192.168.1.0/24`. The intention is not to indiscriminately drop all broadcast traffic. ARP and DHCP, amongst other protocols, depend on broadcast communication in various circumstances. Nevertheless, this particular rule is deliberately broad within the matched IPv4 subnet. If you implement it on your own network, consider whether you have legitimate subnet-directed broadcast traffic that needs to be permitted.
+
+### Retesting broadcast reflection
+
+Our first retest timed out without AirSnitch reporting a successful attack. However, the nftables counters remained at zero. This was inconclusive since I couldn't establish whether our security control was responsible for the failed attack. I repeated the test, making sure both clients had successfully associated with the AP.
+
+```text
+2.4 GHz: counter packets 10 bytes 480 drop
+5 GHz:   counter packets 0 bytes 0 drop
+```
+
+This time, AirSnitch did not report a successful attack, and the nftables counters confirmed that our rules were dropping packets.
+
+The counter values above are taken from the original terminal output, with the formatting shortened for readability. The relevant rule on the 2.4 GHz radio has matched and dropped ten packets.
+Now we know our security control works.
+
+## Gateway bouncing
+
+This one is particularly interesting because it demonstrates the distinction between Layer 2 and Layer 3 isolation. Suppose we have two clients which cannot communicate directly with each other due to client isolation. Both clients can, however, communicate with the gateway. If the gateway is willing to route traffic between the clients, the clients may still be able to communicate indirectly.
+
+```text
+Client A ------------X------------ Client B
+    |                                 ^
+    |                                 |
+    +----------> Gateway -------------+
+```
+
+At Layer 2, our AP sees traffic being sent to the legitimate gateway. At Layer 3, the final destination is another client that should have been isolated. As far as the AP's conventional Layer 2 isolation mechanism is concerned, the traffic is going to the gateway, which is normally allowed. This is the problem. Remember that our AP is not itself the default gateway. It is bridging the traffic to a separate OpenWrt device. So instead of relying solely on the gateway's routing policy, we implemented an additional security control on the AP itself.
+
+### Additional bridge filtering
+
+We extend the existing `bridge wifi_isolation` table to enforce the following policy:
+
+```sh
+nft -f - <<'EOF'
+add rule bridge wifi_isolation prerouting \
+    iifname "phy0-ap0.*" \
+    ether daddr 30:23:03:dd:69:b0 \
+    ip daddr 192.168.1.2-192.168.1.254 \
+    counter drop
+
+add rule bridge wifi_isolation prerouting \
+    iifname "phy1-ap0.*" \
+    ether daddr 30:23:03:dd:69:b0 \
+    ip daddr 192.168.1.2-192.168.1.254 \
+    counter drop
+EOF
+```
+
+Traffic arriving from a wireless per-station interface and addressed to the gateway at Layer 2 should not be allowed to target other hosts within our local IPv4 subnet at Layer 3. The gateway's own IP address, `192.168.1.1`, was deliberately excluded from the prohibited destination range. We still want the wireless clients to be able to communicate with the gateway itself. We also want ordinary routed Internet traffic to continue working. So our policy distinguishes between:
+
+```text
+Client -> Gateway -> Internet
+Allowed
+
+Client -> Gateway itself
+Allowed, subject to the existing firewall policy
+
+Client -> Gateway -> Another local host
+Dropped
+```
+
+This is specific to my own network topology and addressing scheme. If you have additional legitimate routed services, multiple subnets or a different isolation policy, you will need to account for those.
+
+### Retesting gateway bouncing
+
+Let's repeat the `c2c-ip` test after adding the additional rules.
+Both AirSnitch clients successfully associated with the AP and obtained their IP addresses before the test was performed this time around. And here are the resulting nftables counters:
+
+```text
+Broadcast reflection:
+    2.4 GHz: counter packets 10 bytes 480 drop
+    5 GHz:   counter packets 0 bytes 0 drop
+
+Gateway bouncing:
+    2.4 GHz: counter packets 2 bytes 76 drop
+    5 GHz:   counter packets 0 bytes 0 drop
+```
+
+We have now blocked the gateway-bouncing traffic and verified that the corresponding firewall rule was actually matching and dropping packets. The zero counters on the 5 GHz radio are expected because we were conducting the tests against the 2.4 GHz BSS.
+
+## Making the nftables rules persistent
+
+Now that we have implemented and tested our additional security controls, we don't want to lose them the next time the firewall is restarted or the AP is rebooted.
+We are storing our custom bridge filtering policy in:
+
+```text
+/etc/firewall.wifi-isolation
+```
+
+The script is responsible for deleting the existing custom nftables table, if present, and recreating it with all four rules. The complete contents of this script can be found in the appendix. Our resulting table contained the following security policy: 
+
+| Ingress interface | Traffic classification | Action |
+|---|---|---|
+| `phy0-ap0.*` | Prohibited IPv4 broadcast reflection | Drop and count |
+| `phy1-ap0.*` | Prohibited IPv4 broadcast reflection | Drop and count |
+| `phy0-ap0.*` | Prohibited local IPv4 traffic through gateway | Drop and count |
+| `phy1-ap0.*` | Prohibited local IPv4 traffic through gateway | Drop and count |
+
+The base chain is a bridge prerouting chain with priority `-300`, which nftables displays as `dstnat` in this context. The default chain policy was `accept`. We then register the script as a firewall4-compatible include:
+
+```sh
+chmod 755 /etc/firewall.wifi-isolation
+
+uci -q delete firewall.wifi_isolation
+
+uci set firewall.wifi_isolation='include'
+uci set firewall.wifi_isolation.enabled='1'
+uci set firewall.wifi_isolation.type='script'
+uci set firewall.wifi_isolation.path='/etc/firewall.wifi-isolation'
+uci set firewall.wifi_isolation.fw4_compatible='1'
+
+uci commit firewall
+```
+
+We can inspect our custom ruleset using:
+
+```sh
+nft -a list table bridge wifi_isolation
+```
+
+One thing to keep in mind is that our custom table belongs to the `bridge` family, not to the `inet` family. We are using firewall4 to invoke our own script rather than trying to insert the entire custom table into the existing `inet fw4` table.
+
+### Testing persistence
+
+We manually deleted the table and confirmed that it was gone.
+
+```text
+root@OpenWrt:/etc/config# nft delete table bridge wifi_isolation
+
+root@OpenWrt:/etc/config# nft list table bridge wifi_isolation
+Error: No such file or directory
+list table bridge wifi_isolation
+           ^^^^^^^^^^^^^^
+```
+
+```sh
+/etc/init.d/firewall restart
+```
+
+```sh
+nft -a list table bridge wifi_isolation
+```
+
+The table had been recreated with all four expected rules.
+
+The table handle had changed from `6` to `8`, and all four counters had been reset to zero.
+
+```text
+table bridge wifi_isolation { # handle 8
+```
+
+This confirmed that the firewall4 include was functioning as intended and that our security controls would be restored when the firewall was restarted.
+
+We also want the custom script to survive OpenWrt system upgrades, so we add the following path to `/etc/sysupgrade.conf`:
+
+```text
+/etc/firewall.wifi-isolation
+```
+
+Keep in mind that the custom script is not our only dependency. We also need to make sure that `kmod-nft-bridge` is available after an upgrade. Preserving the configuration file without preserving or reinstalling the required kernel package is not going to do us much good.
+
+## AirSnitch results
+
+So let's summarize what we have actually done so far:
+
+| Test | Initial result | Final result | Validation |
+|---|---|---|---|
+| AP/VLAN support | Unknown | Supported | `iw phy` output |
+| Per-station VIFs | Disabled | Enabled | `iw dev` and bridge FDB |
+| Per-station GTK | Unverified | Separate GTKs | AirSnitch GTK comparison |
+| Uplink port stealing | Successful | Blocked | Authentication rejection |
+| Broadcast reflection | Allowed | Blocked | 10 packets, 480 bytes dropped |
+| Gateway bouncing | Allowed | Blocked | 2 packets, 76 bytes dropped |
+| Firewall persistence | Unverified | Verified | Table deletion and firewall restart |
+
+We have successfully mitigated the three client isolation bypasses that we had identified after enabling per-station GTKs and AP client isolation.
+
+Our final security controls consist of:
+
+- `ap_isolate=1`.
+- `per_sta_vif=1`.
+- Per-station GTKs.
+- Infrastructure MAC denylisting.
+- Bridge-family nftables filtering for broadcast reflection.
+- Bridge-family nftables filtering for gateway bouncing.
+- Persistent firewall4 integration.
+
+There are a few limitations to these results that I want to explicitly mention.
+
+We tested the 2.4 GHz BSS using AirSnitch. We verified that the equivalent hostapd configuration and per-station virtual interfaces existed on the 5 GHz BSS, but we didn't independently repeat all the tests against it.
+
+We also didn't complete a separate experimental validation of downlink port stealing, cross-BSSID attacks, IPv6 equivalents, IGTK separation or GTK separation following rekeying. So when I say that we passed all of our AirSnitch tests, I mean all the attack scenarios that we actually tested and remediated during this particular assessment. I am not claiming that we have formally demonstrated immunity to every possible AirSnitch attack.
+
+## Defense in depth and Yggdrasil
+
+Now let's get back to the service layer mentioned at the beginning of this article. We have implemented several independent security controls at the wireless layer. However, I don't want the confidentiality and integrity of the traffic belonging to my services to depend entirely on the security of WiFi. Every node on my local network runs Yggdrasil. So Yggdrasil encryption starts at the originating node, not at the AP and not at the default gateway.
+
+Our service layer uses VXLANs transported over Yggdrasil. Now there is an important detail here. Although Yggdrasil itself is a mesh network, our VXLAN topology is hub and spoke. The VXLAN hub terminates the tunnels and forwards traffic between the spokes. That means the inner Ethernet frames are available at the hub. This was intentional because we wanted an enforcement point where we could implement ACLs between the spokes. So the hub remains part of our trusted infrastructure. We can still use TLS, SSH and other end-to-end encryption mechanisms at the application layer where appropriate. In fact, we are doing all of those things as well because defense in depth.
+
+Let's assume that tomorrow we get another paper similar to AirSnitch, identifying yet another means of bypassing client isolation. Even if the attacker manages to compromise the underlying WiFi forwarding layer, that alone should not give them the ability to decrypt or forge our independently protected Yggdrasil traffic. They may be able to interfere with connectivity, perform traffic analysis or target protocols running directly on the underlay. Availability remains a problem. There is no amount of encryption that is going to prevent somebody from interfering with the RF spectrum. But the important thing is that a failure at the wireless layer does not automatically imply a failure of the confidentiality and integrity protections at the service layer. And that is the point of defense in depth.
+
+
+## Appendix
+
+The contents of `/etc/firewall.wifi-isolation`:
+
+```sh
+#!/bin/sh
+
+nft delete table bridge wifi_isolation 2>/dev/null
+
+nft -f - <<'NFT'
+table bridge wifi_isolation {
+    chain prerouting {
+        type filter hook prerouting priority -300;
+        policy accept;
+
+        # Block broadcast reflection - 2.4 GHz
+        iifname "phy0-ap0.*" \
+            ether daddr ff:ff:ff:ff:ff:ff \
+            ip daddr 192.168.1.0/24 \
+            counter drop
+
+        # Block broadcast reflection - 5 GHz
+        iifname "phy1-ap0.*" \
+            ether daddr ff:ff:ff:ff:ff:ff \
+            ip daddr 192.168.1.0/24 \
+            counter drop
+
+        # Block gateway bouncing - 2.4 GHz
+        iifname "phy0-ap0.*" \
+            ether daddr 30:23:03:dd:69:b0 \
+            ip daddr 192.168.1.2-192.168.1.254 \
+            counter drop
+
+        # Block gateway bouncing - 5 GHz
+        iifname "phy1-ap0.*" \
+            ether daddr 30:23:03:dd:69:b0 \
+            ip daddr 192.168.1.2-192.168.1.254 \
+            counter drop
+    }
+}
+NFT
+```
+
+One potential improvement to this implementation would be the atomic replacement of the custom nftables table, avoiding the brief enforcement gap between deletion and recreation. The script shown here is the implementation used during our original assessment.
+
+
+<div>
+  <p> written by terminaldweller, proofread by an LLM</p>
+  <p class="timestamp">timestamp:1795634314</p>
+  <p class="version">version:1.0.0</p>
+  <p class="rsslink">https://blog.terminaldweller.com/rss/feed</p>
+  <p class="originalurl">https://raw.githubusercontent.com/terminaldweller/blog/main/mds/wifisecurity.md</p>
+</div>
+<br>

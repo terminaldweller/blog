@@ -53,16 +53,18 @@ In its current form, updates are written manually to the zonefile.
 === Implementation
 
 Before we start, a note regarding notation and it is notation, not
-environment variables. YGG_SUBNET_1 to YGG_SUBNET_3 are the yggdrasil
-nodes’ routed subnet address running on the hidden primary. YGG_SUBNET_4
-to YGG_SUBNET_6 run on the secondaries, one for each. The matching is:
-YGG_SUBNET_1 <—> YGG_SUBNET_4 YGG_SUBNET_2 <—> YGG_SUBNET_5 YGG_SUBNET_3
-<—> YGG_SUBNET_6 So those are how our three private yggdrasil networks
-are made.
+environment variables. YGG++_++SUBNET++_++1 to YGG++_++SUBNET++_++3 are
+the yggdrasil nodes’ routed subnet address running on the hidden
+primary. YGG++_++SUBNET++_++4 to YGG++_++SUBNET++_++6 run on the
+secondaries, one for each. The matching is: YGG++_++SUBNET++_++1
+++<++—++>++ YGG++_++SUBNET++_++4 YGG++_++SUBNET++_++2 ++<++—++>++
+YGG++_++SUBNET++_++5 YGG++_++SUBNET++_++3 ++<++—++>++
+YGG++_++SUBNET++_++6 So those are how our three private yggdrasil
+networks are made.
 
-Here’s the layout: * for the hidden primary, we will have 3 yggdrasil
-instances and knot * for the public secondaries, each instance will have
-dnsdist, yggdrasil and knot
+Here’s the layout: ++*++ for the hidden primary, we will have 3
+yggdrasil instances and knot ++*++ for the public secondaries, each
+instance will have dnsdist, yggdrasil and knot
 
 ==== Hidden Primary
 
@@ -274,13 +276,13 @@ subnet as the yggdrasil routed address plus a route to the node(that’s
 what we are doing in the knot-entrypoint.sh). Again, it is exactly
 because of that we will be using the yggdrasil routed addresses in the
 knot config for XFRs and not the yggdrasil node addresses. That’s also
-why we enable `+net.ipv6.conf.all.forwarding: "1"+` since our yggdrasil
+why we enable `net.ipv6.conf.all.forwarding: "1"` since our yggdrasil
 containers need to be able to forward ipv6 which is what a router should
 be able to do.
 
 For the certs we use for PKI, keep in mind that the certs in question
-should have both `+client-auth+` and `+server-auth+` since the primary
-and secondaries will play both client and server role. When the primary
+should have both `client-auth` and `server-auth` since the primary and
+secondaries will play both client and server role. When the primary
 notifies the secondaries the primary is the client and the secondaries
 are the servers. After the notify, the secondaries query the primary’s
 SOA serial, if it’s newer than what they are currently serving, then
@@ -288,15 +290,15 @@ they initiate an XFR, in which case, they are now the client and the
 primary is the server.
 
 To get the yggdrasil routed addresses you first need to create your
-yggdrasil conf using `+yggdrasil -genconf > yggdrasil.conf+` and then
+yggdrasil conf using `yggdrasil -genconf ++>++ yggdrasil.conf` and then
 point yggdrasil at that conf file and ask it for the routed subnet
-address. You can run `+yggdrasil -help+` for more details. The command
-would look like this: `+yggdrasil -useconffile yggdrasil.conf -subnet+`.
+address. You can run `yggdrasil -help` for more details. The command
+would look like this: `yggdrasil -useconffile yggdrasil.conf -subnet`.
 
-Finally, a note regarding `+nat-unprotected+`. Without it, docker will
-not permit direct routed access to unpublished container ports. With it
-set, docker will allow routed access to unpublished ports, granted there
-is a route defined.
+Finally, a note regarding `nat-unprotected`. Without it, docker will not
+permit direct routed access to unpublished container ports. With it set,
+docker will allow routed access to unpublished ports, granted there is a
+route defined.
 
 [source,txt]
 ----
@@ -422,7 +424,7 @@ In the acl section we set ACLs for the XFRs. We are using the yggdrasil
 address, the TSIG key and mTLS here.
 
 The final section is the zone section where we define the actual zones.
-Note that we are using `+zonefile-sync: -1+` here which is the same as
+Note that we are using `zonefile-sync: -1` here which is the same as
 what the default template was defining(yes, it is redundant since the
 default template is already saying that knot will not write to the
 zonefile).
@@ -457,7 +459,7 @@ roll-over itself. We don’t need to update the parent zone for that.
 ----
 
 For our primary’s ygg config, we will add a matching secondary’s
-listener address to `+Peers+`. Remember that on the primary we will have
+listener address to `Peers`. Remember that on the primary we will have
 three yggdrasil nodes, with three different config files. This is just
 one of them. We want the primary to initiate peering on yggdrasil. This
 has two benefits. One, the hidden primary is in charge of making the
@@ -497,8 +499,8 @@ RUN apt-get update \
 The first dockerfile is for yggdrasil since, at the time of writing this
 yggdrasil does not have an official docker image or I couldn’t find one.
 
-The second one is for knot because we need the `+ip+` command to modify
-the routes in `+knot-entrypoint.sh+` for the routed yggdrasil addresses.
+The second one is for knot because we need the `ip` command to modify
+the routes in `knot-entrypoint.sh` for the routed yggdrasil addresses.
 
 ==== Public Secondaries
 
@@ -696,12 +698,12 @@ and TCP 53 and DoT and DoQ. Please note that the cert key-pair here will
 be the one that will be served on the internet so it needs to be
 something like a letsencrypt cert and not your own local CA’s cert for
 obvious reasons. Also, a gotcha that caught me. We have to tell dnsdist
-to listen on `+0.0.0.0+` and `+[::]+`. `+[::]+` doesn’t mean both IPv4
-and IPv6. The `+newServer+` function(it’s Lua!) sets up the upstream
-which in our case is knot. We also put in a simple test. Dnsdist will
-check its upstream every 10 seconds to make sure it’s working properly.
-The final part is for setting up some rate-limiting and blocking. Feel
-free to use whatever feels right for you.
+to listen on `0.0.0.0` and `++[++::++]++`. `++[++::++]++` doesn’t mean
+both IPv4 and IPv6. The `newServer` function(it’s Lua!) sets up the
+upstream which in our case is knot. We also put in a simple test.
+Dnsdist will check its upstream every 10 seconds to make sure it’s
+working properly. The final part is for setting up some rate-limiting
+and blocking. Feel free to use whatever feels right for you.
 
 [source,txt]
 ----
@@ -753,8 +755,8 @@ zone:
 Some sections are very similar here to the primary’s. On the server
 section, we are also listening on port 53 because that’s where dnsdist
 will be sending the DNS queries. The final difference is in the zone
-section. The `+master: something+` part is what actually determines
-who’s a primary and who’s a secondary.
+section. The `master: something` part is what actually determines who’s
+a primary and who’s a secondary.
 
 [source,sh]
 ----

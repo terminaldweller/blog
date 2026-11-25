@@ -43,8 +43,8 @@ To streamline the process, we will be using vagrant to provision the VM.
 Like already mentioned, we will use Vagrant’s plugin for libvirt to
 build/manage the VM which in turn will use qemu/kvm as the hypervisor.
 We value transparency so we will use an open-source stack for the
-virtualisation: Vagrant+libvirt+qemu/kvm The benefits of using an
-open-source backend include:
+virtualisation: Vagrant{plus}libvirt{plus}qemu/kvm The benefits of using
+an open-source backend include:
 
 * we don’t have to worry about any backdoors in the software. There is a
 big difference between "`they *probably* don’t put backdoors into their
@@ -88,19 +88,19 @@ the same.
 We are running inside a VM so in order to achieve non-persistence we
 could just make a new VM instance, run that and after we are done with
 the instance, we can just destroy it. We will be doing just that but we
-will be using a `+tmpfs+` filesystem and put our VM’s disk on that. This
+will be using a `tmpfs` filesystem and put our VM’s disk on that. This
 has a couple of benefits:
 
 * RAM is faster than disk. Even faster than an nvme drive
 * RAM is volatile
 
 One thing to be wary of is swap. In our case we will be using the newer
-`+tmpfs+` which will use swap if we go over our disk limit so keep this
-in mind while making the tmpfs mount. Please note that there are ways
-around this as well. One could use the older `+ramfs+` but in my case
-this is not necessary since I’m using zram for my host’s swap solution.
-This means that the swap space will be on the RAM itself so hitting the
-swap will still mean we never hit the disk.
+`tmpfs` which will use swap if we go over our disk limit so keep this in
+mind while making the tmpfs mount. Please note that there are ways
+around this as well. One could use the older `ramfs` but in my case this
+is not necessary since I’m using zram for my host’s swap solution. This
+means that the swap space will be on the RAM itself so hitting the swap
+will still mean we never hit the disk.
 
 To mount a tmpfs, we can run:
 
@@ -112,7 +112,7 @@ sudo mount -t tmpfs -o size=4096M tmpfs /tmp/tmpfs
 Remember we talked about a smaller memory footprint? This is why. An
 alpine VM with firefox on top of it is smaller both in disk-size and
 memory used(mostly because of alpine using libmusl instead of glibc).
-The above command will mount a 4GB tmpfs on `+/tmp/tmpfs+`. Next we want
+The above command will mount a 4GB tmpfs on `/tmp/tmpfs`. Next we want
 to create a new storage pool for libvirt so that we can specify the VM
 to use that in Vagrant.
 
@@ -183,7 +183,7 @@ ufw allow out on eth0 to 185.204.1.174 port 443 proto tcp
 ufw allow in on eth0 from 185.204.1.174 port 443 proto tcp
 ----
 
-`+eth0+` is the interface that originally had internet access. Now after
+`eth0` is the interface that originally had internet access. Now after
 denying it any access, we are allowing it to only talk to the VPN server
 on the server’s port 443. Needless to say, the IP addresses, the ports
 and the protocol(tcp/udp which we are not having ufw enforce) will
@@ -206,15 +206,15 @@ twice, once when the VM is being brought up and once when it is being
 destroyed. Imagine a scenario when you close the disposable firefox VM,
 thinking that is gone but in reality it needs you to type in the sudo
 password to destroy it, thus, keeping the instance alive. The solution
-is simple. We add the following to `+/etc/exports+`:
+is simple. We add the following to `/etc/exports`:
 
 [source,sh]
 ----
 "/home/user/share/nfs" 192.168.121.0/24(rw,no_subtree_check,all_squash,anonuid=1000,anongid=1000)
 ----
 
-This will enable the VM to access `+/home/user/share/nfs+` without
-needing sudo.
+This will enable the VM to access `/home/user/share/nfs` without needing
+sudo.
 
 === The Vagrantfile
 
@@ -339,15 +339,15 @@ end
 ==== Provisioning
 
 We will be using the vagrant shell provisioner to prepare the VM. The
-first provisioner names `+update-upgrade+` does what the name implies.
-It installs the required packages. The next provisioner,
-`+update-upgrade-privileged+`, enables X11 forwarding on openssh, sets
-up openvpn as a service and starts it and finally sets the timezone to
-UTC. The third provisioner, `+kill-switch+`, sets up our kill-switch
-using ufw. The final provisioner runs the mullvad test for their VPN.
-Since at this point we have set up the kill-switch we wont leak our IP
-address to the mullvad website but that’s not important since we are
-using our own IP address to connect to the mullvad VPN servers.
+first provisioner names `update-upgrade` does what the name implies. It
+installs the required packages. The next provisioner,
+`update-upgrade-privileged`, enables X11 forwarding on openssh, sets up
+openvpn as a service and starts it and finally sets the timezone to UTC.
+The third provisioner, `kill-switch`, sets up our kill-switch using ufw.
+The final provisioner runs the mullvad test for their VPN. Since at this
+point we have set up the kill-switch we wont leak our IP address to the
+mullvad website but that’s not important since we are using our own IP
+address to connect to the mullvad VPN servers.
 
 ==== Interface
 
@@ -366,7 +366,7 @@ Look https://www.kicksecure.com/wiki/Dev/Entropy#haveged[here].
 
 ===== QEMU Sandbox
 
-From `+man 1 qemu+`:
+From `man 1 qemu`:
 
 [source,txt]
 ----
@@ -436,16 +436,16 @@ The script is straightforward. It brings up the VM, and destroys it when
 the disposable firefox instance is closed. Let’s look at a couple of
 things that we are doing here:
 
-* The shebang line: we are using `+dash+`, the debian almquist shell. It
+* The shebang line: we are using `dash`, the debian almquist shell. It
 has a smaller attack surface. It’s small but we don’t need all the
 features of bash or zsh here so we use something "`more secure`".
 * we add and remove the IP of the VM from the xhost list. This allows
 the instance to display the firefox window on the host’s X server and
 after it’s done, we remove it so we don’t end up whitelisting the entire
 IP range(least privilege principle, remember?).
-* we use `+-o UserKnownHostsFile=/dev/null+` to prevent the VM from
-adding to the host’s known hosts file. There are two reasons why we do
-this here. One, the IP range is limited, we will eventually end up
+* we use `-o UserKnownHostsFile=/dev/null` to prevent the VM from adding
+to the host’s known hosts file. There are two reasons why we do this
+here. One, the IP range is limited, we will eventually end up
 conflicting with another IP that lives on your hostsfile that was a live
 and well VM as some point but is now dead so libvirt will reassign its
 IP address to our disposable instance which will prompt ssh to tell you
@@ -454,10 +454,10 @@ command from completing successfully which will in turn result in the VM
 getting killed. Two, we will stop polluting the hostsfile by all the IPs
 of the disposable VM instances that we keep creating so that you won’t
 have to deal with the same problem while running other VMs.
-* we register a signal handler for `+SIGTERM+` and `+SIGINT+` so that we
-can destroy the VM after we created it and we one of those signals. This
+* we register a signal handler for `SIGTERM` and `SIGINT` so that we can
+destroy the VM after we created it and we one of those signals. This
 helps ensure a higher rate of confidence in the VM getting destroyed.
-This does not guarantee that. A `+SIGKILL+` will kill the script and
+This does not guarantee that. A `SIGKILL` will kill the script and
 that’s that.
 
 === Notes Regarding the Host

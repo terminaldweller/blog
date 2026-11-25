@@ -359,10 +359,11 @@ uci commit firewall
 ----
 
 To test the forwarding rule, I took VXLAN down on one spoke and pinged
-another at another address on 192.168.100.0/24. The hub’s forward_lan
-reject counter went from zero to three, one for each probe. None of the
-probes appeared on br-overlay. The packets reached the hub over the
-physical LAN, and the hub refused to forward them onto the overlay.
+another at another address on 192.168.100.0/24. The hub’s
+forward++_++lan reject counter went from zero to three, one for each
+probe. None of the probes appeared on br-overlay. The packets reached
+the hub over the physical LAN, and the hub refused to forward them onto
+the overlay.
 
 === Final Note and a Request
 
