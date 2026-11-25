@@ -117,6 +117,14 @@ var blogs = [
     teaser: fs.readFileSync(path.join(__dirname) + "/mds/yggdrasilallthethings.txt"),
     keywords: ["yggdrasil","vxlan","openwrt","linux","freebsd"],
     lastUpdatedAt: Date.now(),
+  },
+  {
+    title: "WiFi Security",
+    slug: "wifisecurity",
+    body: fs.readFileSync(path.join(__dirname) + "/mds/wifisecurity.md"),
+    teaser: fs.readFileSync(path.join(__dirname) + "/mds/wifisecurity.txt"),
+    keywords: ["wifi","airsnitch","nftables","openwrt"],
+    lastUpdatedAt: Date.now(),
   }
 ];
 
